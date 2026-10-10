@@ -1,0 +1,10 @@
+name: novel_contracts
+description: Shared novel workspace contracts.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.12.0
+resolution: workspace
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.29.0

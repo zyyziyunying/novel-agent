@@ -1,0 +1,19 @@
+name: novel_workbench
+description: Author-controlled Flutter novel workbench.
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.12.0
+resolution: workspace
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  novel_contracts:
+    path: ../packages/novel_contracts
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+flutter:
+  uses-material-design: true

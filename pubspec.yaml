@@ -1,0 +1,8 @@
+name: novel_agent_lab
+publish_to: none
+environment:
+  sdk: ^3.12.0
+workspace:
+  - packages/novel_contracts
+  - agent
+  - viewer
