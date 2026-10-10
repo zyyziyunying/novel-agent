@@ -4,6 +4,7 @@
 
 - 先读 [SPEC.md](SPEC.md)，确认项目阶段、已确认需求与待决事项。
 - 调研 InkOS 或选择写作内核时，读 [InkOS 学习笔记](docs/references/inkos-learning.md)；其中的上游实现和核验结论只适用于标注的快照。
+- 模型选型或写作质量评测前，读 [调研索引](docs/research/README.md) 和对应专题，区分价格快照、候选建议与实际测试结果。后续小说 Agent 调研按索引约定在本仓库归档。
 - [README.md](README.md) 是阅读入口。产品范围与验收由 SPEC.md 维护，外部方案的学习记录由学习笔记维护，避免重复维护同一事实。
 
 ## 项目边界
