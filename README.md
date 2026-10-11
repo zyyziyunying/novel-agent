@@ -2,6 +2,8 @@
 
 面向小说作者的知识库与写作工作台。作者主导创作，Agent 辅助续写和改稿。当前为本地单作品原型：Flutter Web 工作台、Dart Agent 服务、Genkit Dart 1.0.0 与 DeepSeek 插件。
 
+软件版本以 [VERSION](VERSION) 为准；当前原型登记为 0.1.0，下一阶段 0.2.0 的需求与推进计划见 [SPEC.md](SPEC.md#020-推进计划)。版本规则见 [版本管理](docs/versioning.md)，已实现变更见 [CHANGELOG](CHANGELOG.md)。
+
 ## 本地运行
 
 已验证工具环境：Flutter 3.44.1、Dart 3.12.1。Genkit 相关依赖固定为 1.0.0，并提交根目录 `pubspec.lock`。
@@ -70,6 +72,7 @@ tool/run_deepseek.sh
 仓库根目录：
 
 ```sh
+dart run tool/version.dart --check
 dart analyze
 dart test agent/test packages/novel_contracts/test
 ```
@@ -88,6 +91,8 @@ flutter build web --no-pub
 | 文档 | 内容 |
 | --- | --- |
 | [SPEC.md](SPEC.md) | 已确认需求、实现范围、待决事项与验收 |
+| [版本管理](docs/versioning.md) | 版本来源、同步检查、数据版本与发布标签规则 |
+| [CHANGELOG.md](CHANGELOG.md) | 已实现变更、版本基线与验证依据 |
 | [架构说明](docs/architecture.md) | 包边界、状态事务、JSON 契约与限制 |
 | [小说 Agent 调研索引](docs/research/README.md) | 模型、写作评测与后续调研 |
 | [InkOS 学习笔记](docs/references/inkos-learning.md) | 固定上游快照的机制与限制 |
