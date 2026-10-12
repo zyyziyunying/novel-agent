@@ -43,6 +43,7 @@ class _KnowledgeEditor extends StatefulWidget {
 class _KnowledgeEditorState extends State<_KnowledgeEditor> {
   final title = TextEditingController();
   final body = TextEditingController();
+  final formScroll = ScrollController();
   final List<_SourceInput> sources = [];
   List<DiscussionSource> discussionSources = [];
   late final String documentId;
@@ -147,6 +148,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
   void dispose() {
     title.dispose();
     body.dispose();
+    formScroll.dispose();
     for (final source in sources) {
       source.dispose();
     }
@@ -159,137 +161,190 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
     builder: (context, _) {
       final editable = !controller.busy && requestId == null;
       return AlertDialog(
+        insetPadding: const EdgeInsets.all(20),
         title: Text(widget.document == null ? '新增资料' : '编辑资料'),
-        content: SizedBox(
-          width: 680,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('目标知识库：${widget.library.name}'),
-                const Text('保存只新增资料版本；作品需要另行采用，正文和派生记忆不会随之改变。'),
-                if (stale) ...[
-                  const Text('服务端资料版本已变化，本地编辑已保留。可查看后加载最新版，或保留草稿另行整理。'),
-                  TextButton(
-                    onPressed: editable
-                        ? () => setState(() => fill(current?.current))
-                        : null,
-                    child: const Text('放弃草稿并加载最新版'),
-                  ),
-                ],
-                TextField(
-                  controller: title,
-                  readOnly: !editable,
-                  decoration: const InputDecoration(labelText: '资料标题'),
-                ),
-                DropdownButtonFormField<String>(
-                  initialValue: kind,
-                  key: ValueKey('kind-$baseVersionId'),
-                  decoration: const InputDecoration(labelText: '资料身份'),
-                  items: [
-                    for (final k in ['reference', 'setting', 'plan'])
-                      DropdownMenuItem(value: k, child: Text(knowledgeKind(k))),
-                  ],
-                  onChanged: editable
-                      ? (value) => setState(() => kind = value!)
-                      : null,
-                ),
-                TextField(
-                  controller: body,
-                  readOnly: !editable,
-                  minLines: 4,
-                  maxLines: 12,
-                  decoration: const InputDecoration(labelText: '资料正文'),
-                ),
-                DropdownButtonFormField<String>(
-                  key: ValueKey('associated-$baseVersionId'),
-                  initialValue: associatedWorkId ?? '',
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: '来源关联作品（可选，不自动采用）',
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: '',
-                      child: Text('独立资料，无作品关联'),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+        content: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+          ),
+          child: SizedBox(
+            width: 680,
+            child: Scrollbar(
+              controller: formScroll,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                key: const ValueKey('knowledge-editor-form'),
+                controller: formScroll,
+                padding: const EdgeInsets.fromLTRB(0, 4, 12, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '目标知识库：${widget.library.name}',
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    for (final work in controller.workspace!.works)
-                      DropdownMenuItem(
-                        value: work.id,
-                        child: Text(
-                          work.title,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '保存为新版本，作品当前采用的版本保持不变。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 20),
+                    if (stale) ...[
+                      const Text('服务端资料版本已变化，本地编辑已保留。可查看后加载最新版，或保留草稿另行整理。'),
+                      TextButton(
+                        onPressed: editable
+                            ? () => setState(() => fill(current?.current))
+                            : null,
+                        child: const Text('放弃草稿并加载最新版'),
                       ),
-                  ],
-                  onChanged: editable
-                      ? (value) => setState(
-                          () => associatedWorkId = value == '' ? null : value,
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                const Text('原始来源'),
-                for (final source in sources)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        DropdownButton<String>(
-                          value: source.kind,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'author',
-                              child: Text('作者'),
-                            ),
-                            DropdownMenuItem(value: 'web', child: Text('网页')),
-                            DropdownMenuItem(value: 'file', child: Text('文件')),
-                          ],
-                          onChanged: editable
-                              ? (value) => setState(() => source.kind = value!)
-                              : null,
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      controller: title,
+                      readOnly: !editable,
+                      decoration: const InputDecoration(labelText: '资料标题'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: kind,
+                      isExpanded: true,
+                      key: ValueKey('kind-$baseVersionId'),
+                      decoration: const InputDecoration(labelText: '资料身份'),
+                      items: [
+                        for (final k in ['reference', 'setting', 'plan'])
+                          DropdownMenuItem(
+                            value: k,
+                            child: Text(knowledgeKind(k)),
+                          ),
+                      ],
+                      onChanged: editable
+                          ? (value) => setState(() => kind = value!)
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: body,
+                      readOnly: !editable,
+                      minLines: 6,
+                      maxLines: 8,
+                      decoration: const InputDecoration(
+                        labelText: '资料正文',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('associated-$baseVersionId'),
+                      initialValue: associatedWorkId ?? '',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: '来源关联作品（可选，不自动采用）',
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: '',
+                          child: Text('独立资料，无作品关联'),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: source.field,
-                            readOnly: !editable,
-                            decoration: const InputDecoration(
-                              labelText: '来源地址或说明',
+                        for (final work in controller.workspace!.works)
+                          DropdownMenuItem(
+                            value: work.id,
+                            child: Text(
+                              work.title,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: '移除此来源',
-                          onPressed: editable
-                              ? () => setState(() {
-                                  sources.remove(source);
-                                  source.dispose();
-                                })
-                              : null,
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
                       ],
+                      onChanged: editable
+                          ? (value) => setState(
+                              () =>
+                                  associatedWorkId = value == '' ? null : value,
+                            )
+                          : null,
                     ),
-                  ),
-                for (final source in discussionSources)
-                  Text(
-                    '保留讨论来源：${source.workId} / ${source.discussionId} / ${source.messageId}',
-                  ),
-                TextButton(
-                  onPressed: editable
-                      ? () => setState(
-                          () => sources.add(_SourceInput('author', '')),
-                        )
-                      : null,
-                  child: const Text('添加来源'),
+                    const SizedBox(height: 24),
+                    Text('原始来源', style: Theme.of(context).textTheme.titleSmall),
+                    for (final source in sources)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                DropdownButton<String>(
+                                  value: source.kind,
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: 'author',
+                                      child: Text('作者'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'web',
+                                      child: Text('网页'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'file',
+                                      child: Text('文件'),
+                                    ),
+                                  ],
+                                  onChanged: editable
+                                      ? (value) =>
+                                            setState(() => source.kind = value!)
+                                      : null,
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: '移除此来源',
+                                  onPressed: editable
+                                      ? () => setState(() {
+                                          sources.remove(source);
+                                          source.dispose();
+                                        })
+                                      : null,
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: source.field,
+                              readOnly: !editable,
+                              minLines: 2,
+                              maxLines: null,
+                              decoration: const InputDecoration(
+                                labelText: '来源地址或说明',
+                                alignLabelWithHint: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    for (final source in discussionSources)
+                      Text(
+                        '保留讨论来源：${source.workId} / ${source.discussionId} / ${source.messageId}',
+                      ),
+                    TextButton(
+                      onPressed: editable
+                          ? () => setState(
+                              () => sources.add(_SourceInput('author', '')),
+                            )
+                          : null,
+                      child: const Text('添加来源'),
+                    ),
+                    if (validation != null) Text(validation!),
+                    if (controller.error != null) Text(controller.error!),
+                    if (requestId != null)
+                      const Text('结果尚未确认，资料编辑已保留。请刷新或用原请求重试。'),
+                  ],
                 ),
-                if (validation != null) Text(validation!),
-                if (controller.error != null) Text(controller.error!),
-                if (requestId != null) const Text('结果尚未确认，资料编辑已保留。请刷新或用原请求重试。'),
-              ],
+              ),
             ),
           ),
         ),

@@ -79,6 +79,12 @@ void main() {
     await controller.load();
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(
+          useMaterial3: true,
+          inputDecorationTheme: const InputDecorationTheme(
+            border: OutlineInputBorder(),
+          ),
+        ),
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(
             context,
@@ -299,6 +305,54 @@ void main() {
     );
     expect(gateway.workspace.work('work-a').toJson(), before);
     expect(find.textContaining('有新版可采用'), findsOneWidget);
+  });
+
+  testWidgets('长正文和多行来源在矮窄窗口及键盘下可编辑并保存', (tester) async {
+    final gateway = seeded(adopted: true);
+    await mount(tester, gateway, size: const Size(600, 640), scale: 1.3);
+    await openEditor(tester);
+    final longBody = List.generate(
+      60,
+      (index) => '第 ${index + 1} 段：男主重新练习吉他，逐渐学会兑现承诺。',
+    ).join('\n');
+    await tester.enterText(field('资料正文'), longBody);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 170);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    final source = field('来源地址或说明').last;
+    await tester.ensureVisible(source);
+    await tester.pumpAndSettle();
+    const description =
+        '作者与 Codex 的创作讨论。\n'
+        '人物关系、影子规则与故事大纲作为本轮输入，尚未确定的人名与城市保留未定状态。';
+    await tester.enterText(source, description);
+    await tester.ensureVisible(source);
+    await tester.pumpAndSettle();
+
+    final save = find.widgetWithText(FilledButton, '保存资料版本');
+    expect(source.hitTestable(), findsOneWidget);
+    expect(save.hitTestable(), findsOneWidget);
+    expect(
+      tester.getSize(source).height,
+      greaterThan(tester.getSize(field('资料标题')).height),
+    );
+    expect(
+      tester.getRect(source).bottom,
+      lessThanOrEqualTo(tester.getRect(save).top),
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    final saved = gateway.workspace.library('k1').documents.single.current;
+    expect(saved.body, longBody);
+    expect(saved.provenance.sources.last.toJson(), {
+      'kind': 'author',
+      'reference': description,
+    });
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('编辑中远端版本变化保留草稿，旧 head 被拒绝，明确放弃后可加载最新', (tester) async {
