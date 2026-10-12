@@ -7,6 +7,7 @@ import 'targets.dart';
 import 'validation.dart';
 
 const _workOperations = {
+  'createChapter',
   'proposeChapter',
   'proposeEdit',
   'saveChapter',

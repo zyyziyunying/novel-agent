@@ -74,7 +74,10 @@ class TextVersion {
   Json toJson() => {'id': id, 'body': body};
   factory TextVersion.fromJson(Object? value) {
     final j = object(value, {'id', 'body'});
-    return TextVersion(id: readText(j['id']), body: readText(j['body']));
+    return TextVersion(
+      id: readText(j['id']),
+      body: readText(j['body'], allowEmpty: true),
+    );
   }
 }
 
@@ -421,6 +424,7 @@ class NovelCommand {
     readText(requestId);
     integer(expectedRevision);
     final fields = switch (operation) {
+      'createChapter' => {'chapterId', 'title'},
       'proposeChapter' => {'instruction'},
       'proposeEdit' => {'chapterId', 'start', 'end', 'instruction'},
       'saveChapter' => {'chapterId', 'body'},

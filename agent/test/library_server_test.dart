@@ -17,6 +17,45 @@ void main() {
   });
   tearDown(() => directory.delete(recursive: true));
 
+  test(
+    '无模型 HTTP 新建空白章节，强制重启保留并可手动保存；重试不重复建章',
+    () async {
+      var server = await LibraryAgentProcess.start(directory);
+      addTearDown(() => server.stop());
+      await server.execute(createWork());
+      final original = command('manual-http', 1, 'createChapter', {
+        'chapterId': 'manual-first',
+        'title': '作者的第一章',
+      }, target: CommandTarget.work('work-a'));
+      await server.execute(original);
+      final before = (await server.request(
+        '/libraryWorkspace',
+      )).$2['workspace'];
+      await server.stop(abrupt: true);
+      server = await LibraryAgentProcess.start(directory);
+      final loaded = LibraryWorkspace.fromJson(
+        (await server.request('/libraryWorkspace')).$2['workspace'],
+      );
+      expect(loaded.toJson(), before);
+      expect(loaded.work('work-a').chapters.single.body, isEmpty);
+      expect((await server.execute(original))['reused'], isTrue);
+      final saved = await server.execute(
+        command('manual-save', 2, 'saveChapter', {
+          'chapterId': 'manual-first',
+          'body': '完全由作者手写的正文。',
+        }, target: CommandTarget.work('work-a')),
+      );
+      final work = LibraryWorkspace.fromJson(saved['workspace']).work('work-a');
+      expect(work.chapters.single.title, '作者的第一章');
+      expect(work.chapters.single.body, '完全由作者手写的正文。');
+      expect(work.chapters.single.versions.length, 2);
+      expect(work.chapters.single.versions.first.body, isEmpty);
+      expect(work.proposals, isEmpty);
+      expect(saved['modelAvailable'], isFalse);
+    },
+    timeout: const Timeout(Duration(seconds: 40)),
+  );
+
   test('无密钥 HTTP 读写、原文来源、强制重启与原请求回执去重', () async {
     var server = await LibraryAgentProcess.start(directory);
     addTearDown(() => server.stop());
@@ -214,31 +253,101 @@ void main() {
     );
   }, timeout: const Timeout(Duration(seconds: 30)));
 
+  test('fixture 显式启用后可起草格式 2 正文', () async {
+    final server = await LibraryAgentProcess.start(directory, fixture: true);
+    addTearDown(server.stop);
+    final state = (await server.request('/libraryWorkspace')).$2;
+    expect(state['modelAvailable'], isTrue);
+    expect(state['provider'], 'fixture/local');
+    await server.execute(createWork());
+    final generate = command('generate', 1, 'proposeChapter', {
+      'instruction': '续写',
+    }, target: CommandTarget.work('work-a'));
+    final response = await server.execute(generate);
+    expect(response['workspace']['works'][0]['proposals'].length, 1);
+    await server.execute(createLibrary(2));
+    expect(
+      (await server.request('/libraryWorkspace')).$2['workspace']['revision'],
+      3,
+    );
+    expect(await server.stop(), 0);
+  }, timeout: const Timeout(Duration(seconds: 25)));
+
   test(
-    'fixture 只能显式启用，格式 2 模型操作仍明确报告尚未接入',
+    '两作品的正文、命名、历史、提案、记忆和目标回执在强制重启后保留',
     () async {
-      final server = await LibraryAgentProcess.start(directory, fixture: true);
-      addTearDown(server.stop);
-      final state = (await server.request('/libraryWorkspace')).$2;
-      expect(state['modelAvailable'], isTrue);
-      expect(state['provider'], 'fixture/local');
+      var server = await LibraryAgentProcess.start(directory, fixture: true);
+      addTearDown(() => server.stop());
       await server.execute(createWork());
-      final generate = command('generate', 1, 'proposeChapter', {
-        'instruction': '续写',
-      }, target: CommandTarget.work('work-a'));
-      final response = await server.request(
-        '/libraryAction',
-        body: {'data': generate.toJson()},
+      await server.execute(createWork(1, 'work-b'));
+      var revision = 2;
+      var sequence = 0;
+      Future<Json> act(
+        String workId,
+        String operation, [
+        Json payload = const {},
+      ]) async {
+        final result = await server.execute(
+          command(
+            'm3-http-${++sequence}',
+            revision,
+            operation,
+            payload,
+            target: CommandTarget.work(workId),
+          ),
+        );
+        revision = result['workspace']['revision'];
+        return result;
+      }
+
+      for (final id in ['work-a', 'work-b']) {
+        await act(id, 'renameWork', {'title': id == 'work-a' ? '远航记' : '长安夜'});
+        final proposed = await act(id, 'proposeChapter', {
+          'instruction': '第一章',
+        });
+        final work = LibraryWorkspace.fromJson(proposed['workspace']).work(id);
+        await act(id, 'acceptProposal', {
+          'proposalId': work.proposals.single.proposal.id,
+        });
+        await act(id, 'rebuildMemory');
+        await act(id, 'saveChapter', {
+          'chapterId': 'chapter-1',
+          'body': '$id 作者保存正文。',
+        });
+        await act(id, 'rebuildMemory');
+      }
+      final before = LibraryWorkspace.fromJson(
+        (await server.request('/libraryWorkspace')).$2['workspace'],
       );
-      expect(response.$2['status'], 'FAILED_PRECONDITION');
-      expect(response.$2['message'], contains('尚未接入格式 2 服务'));
-      await server.execute(createLibrary());
+      await server.stop(abrupt: true);
+      server = await LibraryAgentProcess.start(directory);
+      final after = LibraryWorkspace.fromJson(
+        (await server.request('/libraryWorkspace')).$2['workspace'],
+      );
+      expect(after.toJson(), before.toJson());
+      expect(after.works.map((w) => w.title), ['远航记', '长安夜']);
+      for (final id in ['work-a', 'work-b']) {
+        expect(after.work(id).chapters.single.body, '$id 作者保存正文。');
+        expect(after.work(id).chapters.single.versions.length, 2);
+        expect(after.work(id).proposals.single.workId, id);
+        expect(
+          after.workView(id).currentMemory!.facts.single.evidence,
+          '$id 作者保存正文。',
+        );
+      }
+      final retry = command(
+        'm3-http-$sequence',
+        before.revision - 1,
+        'rebuildMemory',
+        {},
+        target: CommandTarget.work('work-b'),
+      );
+      expect((await server.execute(retry))['reused'], isTrue);
       expect(
-        (await server.request('/libraryWorkspace')).$2['workspace']['revision'],
-        2,
+        (await server.request('/libraryWorkspace')).$2['modelAvailable'],
+        isFalse,
       );
-      expect(await server.stop(), 0);
     },
-    timeout: const Timeout(Duration(seconds: 25)),
+    timeout: const Timeout(Duration(seconds: 40)),
   );
 }

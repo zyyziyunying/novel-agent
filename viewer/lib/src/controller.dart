@@ -4,7 +4,8 @@ import 'package:novel_contracts/novel_contracts.dart';
 import 'gateway.dart';
 
 class WorkspaceController extends ChangeNotifier {
-  WorkspaceController(this.gateway);
+  WorkspaceController(this.gateway, {String requestNamespace = 'work'})
+    : _session = '$requestNamespace-${DateTime.now().microsecondsSinceEpoch}';
   final NovelGateway gateway;
   Workspace? workspace;
   String provider = '';
@@ -15,7 +16,7 @@ class WorkspaceController extends ChangeNotifier {
   final Map<String, ({String requestId, String body, String? head})>
   _chapterSaves = {};
   int _sequence = 0;
-  final String _session = DateTime.now().microsecondsSinceEpoch.toString();
+  final String _session;
 
   ({String requestId, String body, String? head})? chapterSave(
     String chapterId,
@@ -55,6 +56,13 @@ class WorkspaceController extends ChangeNotifier {
       _confirm(command);
       pending = null;
     } on GatewayFailure catch (failure) {
+      // Central refresh can observe the commit before this connection fails.
+      if (workspace!.receipts.containsKey(command.requestId)) {
+        _confirm(command);
+        pending = null;
+        error = null;
+        return;
+      }
       pending = failure.uncertain ? command : null;
       rethrow;
     }
@@ -77,8 +85,22 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   void _apply(WorkspaceResult result) {
-    workspace = result.workspace;
+    if (workspace == null || result.workspace.revision >= workspace!.revision) {
+      workspace = result.workspace;
+    }
     provider = result.provider;
+  }
+
+  /// Refresh a work-local view without replacing its draft or request state.
+  void update(WorkspaceResult result) {
+    _apply(result);
+    if (pending != null &&
+        workspace!.receipts.containsKey(pending!.requestId)) {
+      _confirm(pending!);
+      pending = null;
+      error = null;
+    }
+    notifyListeners();
   }
 
   Future<bool> _run(Future<void> Function() work) async {

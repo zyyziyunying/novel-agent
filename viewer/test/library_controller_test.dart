@@ -1,0 +1,121 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:novel_contracts/novel_contracts.dart';
+import 'package:novel_workbench/src/gateway.dart';
+import 'package:novel_workbench/src/library_controller.dart';
+import 'package:novel_workbench/src/library_gateway.dart';
+
+import 'support/library_gateway.dart';
+
+void main() {
+  test('中央刷新已确认 A 回执后，迟到网络失败仍视为成功并允许 B 写入', () async {
+    final delayed = Completer<LibraryResult>();
+    final gateway = FakeLibraryGateway()..response = delayed;
+    final controller = LibraryController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final a = controller.controllerFor('work-a');
+    final saving = a.act('saveChapter', {
+      'chapterId': 'chapter-1',
+      'body': 'A 已提交正文',
+    });
+    final original = gateway.commands.single;
+    controller.select('work-b');
+    expect(await controller.load(), isTrue);
+    expect(a.workspace!.receipts.containsKey(original.requestId), isTrue);
+    delayed.completeError(const GatewayFailure('迟到的连接超时', uncertain: true));
+    expect(await saving, isTrue);
+    expect(a.pending, isNull);
+    expect(a.error, isNull);
+    expect(a.lastConfirmedCommand!.requestId, original.requestId);
+    expect(a.chapterSave('chapter-1')!.body, 'A 已提交正文');
+    expect(controller.canChangeCatalog, isTrue);
+    expect(controller.selectedId, 'work-b');
+    gateway.response = null;
+    expect(
+      await controller.controllerFor('work-b').act('saveChapter', {
+        'chapterId': 'chapter-1',
+        'body': 'B 新版正文',
+      }),
+      isTrue,
+    );
+    expect(gateway.commands.map((c) => c.target.workId), ['work-a', 'work-b']);
+    expect(gateway.workspace.work('work-a').chapters.first.versions.length, 2);
+  });
+
+  test('仅有其他作品回执不能确认 A 的未知请求，仍保留原请求和写入阻断', () async {
+    final gateway = FakeLibraryGateway()
+      ..failure = const GatewayFailure('结果未知', uncertain: true);
+    final controller = LibraryController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final a = controller.controllerFor('work-a');
+    expect(
+      await a.act('saveChapter', {'chapterId': 'chapter-1', 'body': 'A 未确认正文'}),
+      isFalse,
+    );
+    final original = a.pending;
+    gateway.failure = null;
+    // A separate client can commit B while the page still waits for A.
+    await gateway.execute(
+      LibraryCommand(
+        requestId: 'external-b',
+        expectedRevision: 0,
+        target: CommandTarget.work('work-b'),
+        operation: 'renameWork',
+        payload: {'title': 'B 外部命名'},
+      ),
+    );
+    expect(await controller.load(), isTrue);
+    expect(controller.workspace!.receipts.containsKey('external-b'), isTrue);
+    expect(a.pending, same(original));
+    expect(a.lastConfirmedCommand, isNull);
+    expect(controller.canChangeCatalog, isFalse);
+    expect(
+      await controller.controllerFor('work-b').act('saveChapter', {
+        'chapterId': 'chapter-1',
+        'body': 'B 草稿',
+      }),
+      isFalse,
+    );
+    expect(gateway.commands.length, 2);
+  });
+
+  test('A 的旧响应不会回退刷新及 B 保存后的目录，当前选择仍是 B', () async {
+    final delayed = Completer<LibraryResult>();
+    final gateway = FakeLibraryGateway()..response = delayed;
+    final controller = LibraryController(gateway);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final saving = controller.controllerFor('work-a').act('saveChapter', {
+      'chapterId': 'chapter-1',
+      'body': 'A 已提交正文',
+    });
+    final oldResult = gateway.result();
+    controller.select('work-b');
+    await controller.load();
+    gateway.response = null;
+    expect(
+      await controller.controllerFor('work-b').act('saveChapter', {
+        'chapterId': 'chapter-1',
+        'body': 'B 新版正文',
+      }),
+      isTrue,
+    );
+    delayed.complete(oldResult);
+    expect(await saving, isTrue);
+    expect(controller.workspace!.revision, 2);
+    expect(controller.selectedId, 'work-b');
+    expect(
+      controller.controllerFor('work-b').workspace!.chapters.first.body,
+      'B 新版正文',
+    );
+    expect(
+      controller.controllerFor('work-a').workspace!.chapters.first.body,
+      'A 已提交正文',
+    );
+    expect(gateway.commands.map((c) => c.target.workId), ['work-a', 'work-b']);
+    expect(gateway.commands.map((c) => c.requestId).toSet().length, 2);
+  });
+}

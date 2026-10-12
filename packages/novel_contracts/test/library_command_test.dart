@@ -184,6 +184,10 @@ void main() {
     });
 
     final operations = <String, (Json, Json)>{
+      'createChapter': (
+        {'kind': 'work', 'workId': 'work-a'},
+        {'chapterId': 'manual-chapter', 'title': '第一章'},
+      ),
       'createWork': ({'kind': 'catalog'}, {'id': 'work-c', 'title': '新作品'}),
       'createLibrary': ({'kind': 'catalog'}, {'id': 'lib-c', 'name': '新资料库'}),
       'renameWork': ({'kind': 'work', 'workId': 'work-a'}, {'title': '新名称'}),

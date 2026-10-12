@@ -14,9 +14,10 @@ class NovelFailure implements Exception {
 }
 
 class NovelService {
-  NovelService(this.repository, this.model);
+  NovelService(this.repository, this.model, {this.contextMetadata = const {}});
   final WorkspaceRepository repository;
-  final NovelModel model;
+  final NovelModel? model;
+  final Json contextMetadata;
   Future<void> _tail = Future.value();
   final Map<String, (String, Future<Json>)> _inFlight = {};
 
@@ -29,7 +30,7 @@ class NovelService {
   Future<Json> snapshot() async => _result(await repository.load());
   Json _result(Workspace workspace, {bool reused = false}) => {
     'workspace': workspace.toJson(),
-    'provider': model.name,
+    'provider': model?.name,
     'reused': reused,
   };
 
@@ -80,9 +81,32 @@ class NovelService {
     final payload = command.payload;
     Workspace next;
     switch (command.operation) {
+      case 'createChapter':
+        if (base.chapters.any((c) => c.id == payload['chapterId'])) {
+          throw const NovelFailure('chapter_exists', '章节编号已存在。');
+        }
+        final version = TextVersion(
+          id: 'version-${base.revision + 1}',
+          body: '',
+        );
+        next = base.replace(
+          chapters: [
+            ...base.chapters,
+            Chapter(
+              id: payload['chapterId'],
+              number: base.chapters.length + 1,
+              title: payload['title'],
+              head: version.id,
+              versions: [version],
+            ),
+          ],
+        );
       case 'proposeChapter':
       case 'proposeEdit':
         final edit = command.operation == 'proposeEdit';
+        if (!edit && base.chapters.any((c) => c.body.trim().isEmpty)) {
+          throw const NovelFailure('chapter_empty', '请先填写并保存空白章节，再起草下一章。');
+        }
         if (!edit && !base.memoryFresh) {
           throw const NovelFailure('memory_stale', '记忆已失效，请先重建记忆再续写。');
         }
@@ -90,6 +114,7 @@ class NovelService {
           throw const NovelFailure('review_required', '请先复查受旧章修改影响的章节。');
         }
         final context = writingContext(base);
+        context.addAll(contextMetadata);
         context['authorInstruction'] = payload['instruction'];
         Chapter? target;
         if (edit) {
@@ -111,7 +136,7 @@ class NovelService {
           };
         }
         final draft = await _modelCall(
-          () => model.write(context, payload['instruction'], edit: edit),
+          () => model!.write(context, payload['instruction'], edit: edit),
         );
         if (draft.body.trim().isEmpty || draft.body.length > 100000) {
           throw const NovelFailure('invalid_output', '模型正文为空或超过原型限制。');
@@ -128,13 +153,13 @@ class NovelService {
         }
         final proposal = Proposal(
           id: 'proposal-${base.revision + 1}',
-          chapterId: target?.id ?? 'chapter-${base.chapters.length + 1}',
+          chapterId: target?.id ?? _nextChapterId(base),
           title: target?.title ?? draft.title,
           body: body,
           baseHeads: base.currentHeads,
           baseRevision: base.revision,
           status: 'pending',
-          provider: model.name,
+          provider: model!.name,
           context: context,
           usage: draft.usage,
         );
@@ -219,7 +244,10 @@ class NovelService {
           ],
         );
       case 'rebuildMemory':
-        final facts = await _modelCall(() => model.extract(base));
+        if (base.chapters.any((c) => c.body.trim().isEmpty)) {
+          throw const NovelFailure('chapter_empty', '请先填写并保存空白章节，再重建记忆。');
+        }
+        final facts = await _modelCall(() => model!.extract(base));
         if (facts.length > base.chapters.length * 8 ||
             base.chapters.any(
               (c) =>
@@ -293,6 +321,14 @@ class NovelService {
     final chapter = workspace.chapters.where((c) => c.id == id).firstOrNull;
     if (chapter == null) throw const NovelFailure('chapter_missing', '章节不存在。');
     return chapter;
+  }
+
+  String _nextChapterId(Workspace workspace) {
+    var number = workspace.chapters.length + 1;
+    while (workspace.chapters.any((c) => c.id == 'chapter-$number')) {
+      number++;
+    }
+    return 'chapter-$number';
   }
 
   Workspace _saveBody(Workspace base, Chapter chapter, String body) {

@@ -37,6 +37,42 @@ void main() {
     return controller;
   }
 
+  for (final size in [const Size(1440, 1000), const Size(390, 844)]) {
+    testWidgets('空工作区在 ${size.width} 宽度可打开并起草第一章', (tester) async {
+      final gateway = FakeGateway()
+        ..workspace = Workspace(
+          revision: 0,
+          title: '新作品',
+          documents: [],
+          chapters: [],
+          proposals: [],
+          memories: [],
+          receipts: {},
+        );
+      await mount(tester, gateway, size: size);
+      expect(tester.takeException(), isNull);
+      expect(find.text('新作品'), findsOneWidget);
+      expect(find.text('尚无正文'), findsOneWidget);
+      if (size.width < 1120) {
+        await tester.tap(find.byTooltip('知识库与写作助手'));
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(find.text('起草第一章'));
+      await tester.pumpAndSettle();
+      final instruction = find.widgetWithText(TextField, '作者要求');
+      expect(
+        tester.widget<TextField>(instruction).controller!.text,
+        isNot(contains('林舟')),
+      );
+      await tester.enterText(instruction, '写一位航海者启程的第一章。');
+      await tester.tap(find.text('生成提案'));
+      await tester.pumpAndSettle();
+      expect(gateway.commands.single.operation, 'proposeChapter');
+      expect(gateway.commands.single.payload['instruction'], '写一位航海者启程的第一章。');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('宽屏显示正文、资料和记忆，保存正文传递作者草稿', (tester) async {
     final gateway = FakeGateway();
     await mount(tester, gateway);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -5,6 +6,21 @@ import 'package:novel_contracts/novel_contracts.dart';
 
 import 'library_repository.dart';
 import 'model.dart';
+import 'repository.dart';
+import 'service.dart';
+
+const _bodyOperations = {
+  'createChapter',
+  'proposeChapter',
+  'proposeEdit',
+  'saveChapter',
+  'restoreVersion',
+  'acceptProposal',
+  'rejectProposal',
+  'rebuildMemory',
+  'confirmReview',
+};
+const _modelOperations = {'proposeChapter', 'proposeEdit', 'rebuildMemory'};
 
 class LibraryFailure implements Exception {
   const LibraryFailure(this.code, this.message);
@@ -17,6 +33,7 @@ class LibraryService {
   final LibraryRepository repository;
   final NovelModel? model;
   Future<void> _tail = Future.value();
+  final Map<String, (String, Future<Json>)> _inFlight = {};
 
   Future<T> _locked<T>(Future<T> Function() work) {
     final future = _tail.then((_) => work());
@@ -34,19 +51,53 @@ class LibraryService {
     'reused': reused,
   };
 
-  // M2 has no model calls: hold one queue through read, receipt check and commit.
-  // A concurrent duplicate reaches its receipt after the first commit.
-  Future<Json> execute(LibraryCommand command) => _locked(() async {
-    final base = await repository.load();
+  Future<Json> execute(LibraryCommand command) {
     final fingerprint = sha256
         .convert(utf8.encode(command.canonical))
         .toString();
+    final pending = _inFlight[command.requestId];
+    if (pending != null) {
+      if (pending.$1 != fingerprint) {
+        return Future.error(
+          const LibraryFailure('request_conflict', '同一个请求编号不能用于不同操作。'),
+        );
+      }
+      return pending.$2;
+    }
+    if (!_modelOperations.contains(command.operation)) {
+      return _locked(() async {
+        final base = await repository.load();
+        if (_check(base, command, fingerprint)) {
+          return _result(base, reused: true);
+        }
+        final (works, libraries) = _bodyOperations.contains(command.operation)
+            ? (await _applyBody(base, command), base.libraries)
+            : _apply(base, command);
+        return _commit(base, command, fingerprint, works, libraries);
+      });
+    }
+    final future = _generate(command, fingerprint);
+    _inFlight[command.requestId] = (fingerprint, future);
+    unawaited(
+      future.then<void>(
+        (_) => _inFlight.remove(command.requestId),
+        onError: (Object _) => _inFlight.remove(command.requestId),
+      ),
+    );
+    return future;
+  }
+
+  bool _check(
+    LibraryWorkspace base,
+    LibraryCommand command,
+    String fingerprint,
+  ) {
     final receipt = base.receipts[command.requestId];
     if (receipt != null) {
       if (receipt.fingerprint != fingerprint) {
         throw const LibraryFailure('request_conflict', '同一个请求编号不能用于不同操作。');
       }
-      return _result(base, reused: true);
+      return true;
     }
     if (base.revision != command.expectedRevision) {
       throw const LibraryFailure('version_conflict', '工作区已发生变化，请刷新后重新操作。');
@@ -56,8 +107,102 @@ class LibraryService {
     } on FormatException {
       throw const LibraryFailure('target_missing', '请求指定的目标不存在。');
     }
+    return false;
+  }
 
-    final (works, libraries) = _apply(base, command);
+  Future<Json> _generate(LibraryCommand command, String fingerprint) async {
+    final base = await _locked(repository.load);
+    if (_check(base, command, fingerprint)) return _result(base, reused: true);
+    if (model == null) {
+      throw const LibraryFailure('model_unavailable', '未配置模型，作品与资料读写仍可使用。');
+    }
+    final works = await _applyBody(base, command);
+    return _locked(() async {
+      final current = await repository.load();
+      if (_check(current, command, fingerprint)) {
+        return _result(current, reused: true);
+      }
+      return _commit(base, command, fingerprint, works, base.libraries);
+    });
+  }
+
+  Future<List<NovelWork>> _applyBody(
+    LibraryWorkspace base,
+    LibraryCommand command,
+  ) async {
+    final owner = base.work(command.target.workId!);
+    if (command.operation == 'acceptProposal') {
+      final proposed = owner.proposals
+          .where((p) => p.proposal.id == command.payload['proposalId'])
+          .firstOrNull;
+      if (proposed != null && !base.isBasisCurrent(proposed.basis)) {
+        throw const LibraryFailure(
+          'version_conflict',
+          '提案所依据的正文或采用资料版本已改变，请重新生成。',
+        );
+      }
+    }
+    // Reuse the body transaction engine on one isolated domain view. Its
+    // temporary receipt is discarded; only the format 2 commit below persists.
+    final view = InMemoryWorkspaceRepository(base.workView(owner.id));
+    final engine = NovelService(
+      view,
+      model,
+      contextMetadata: {
+        'workId': owner.id,
+        'basis': base.captureBasis(owner.id).toJson(),
+      },
+    );
+    try {
+      await engine.execute(
+        NovelCommand(
+          requestId: command.requestId,
+          expectedRevision: base.revision,
+          operation: command.operation,
+          payload: command.payload,
+        ),
+      );
+    } on NovelFailure catch (failure) {
+      throw LibraryFailure(failure.code, failure.message);
+    }
+    final changed = await view.load();
+    final replacement = NovelWork(
+      id: owner.id,
+      title: owner.title,
+      knowledgeLinks: owner.knowledgeLinks,
+      chapters: changed.chapters,
+      memories: changed.memories,
+      proposals: [
+        for (final proposal in changed.proposals)
+          WorkProposal(
+            workId: owner.id,
+            proposal: proposal,
+            documents:
+                owner.proposals
+                    .where((p) => p.proposal.id == proposal.id)
+                    .firstOrNull
+                    ?.documents ??
+                owner.adoptedDocuments,
+            discussionSource: owner.proposals
+                .where((p) => p.proposal.id == proposal.id)
+                .firstOrNull
+                ?.discussionSource,
+          ),
+      ],
+      discussions: owner.discussions,
+    );
+    return [
+      for (final work in base.works) work.id == owner.id ? replacement : work,
+    ];
+  }
+
+  Future<Json> _commit(
+    LibraryWorkspace base,
+    LibraryCommand command,
+    String fingerprint,
+    List<NovelWork> works,
+    List<KnowledgeLibrary> libraries,
+  ) async {
     LibraryWorkspace next;
     try {
       next = LibraryWorkspace(
@@ -82,7 +227,7 @@ class LibraryService {
       throw const LibraryFailure('version_conflict', '工作区已发生变化，操作未应用。');
     }
     return _result(next);
-  });
+  }
 
   (List<NovelWork>, List<KnowledgeLibrary>) _apply(
     LibraryWorkspace base,
@@ -148,9 +293,6 @@ class LibraryService {
           for (final library in libraries)
             library.id == owner.id ? replacement : library,
         ];
-      case 'proposeChapter':
-      case 'proposeEdit':
-      case 'rebuildMemory':
       case 'sendDiscussionMessage':
         if (model == null) {
           throw const LibraryFailure('model_unavailable', '未配置模型，资料读写仍可使用。');

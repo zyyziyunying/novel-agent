@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
 import 'controller.dart';
-import 'gateway.dart';
+import 'chapter_dialog.dart';
+import 'library_controller.dart';
+import 'library_gateway.dart';
+import 'library_workbench.dart';
 
 class NovelApp extends StatefulWidget {
   const NovelApp({super.key});
@@ -20,7 +23,7 @@ class _NovelAppState extends State<NovelApp> {
   final _token = TextEditingController(
     text: const String.fromEnvironment('NOVEL_AGENT_TOKEN'),
   );
-  WorkspaceController? _controller;
+  LibraryController? _controller;
   String? _error;
   @override
   void initState() {
@@ -37,8 +40,8 @@ class _NovelAppState extends State<NovelApp> {
       setState(() => _error = '请输入本地 Agent 地址及其显示的会话令牌。');
       return;
     }
-    _controller = WorkspaceController(
-      HttpNovelGateway(endpoint: endpoint, token: _token.text.trim()),
+    _controller = LibraryController(
+      HttpLibraryGateway(endpoint: endpoint, token: _token.text.trim()),
     );
     _controller!.load();
     setState(() {});
@@ -65,7 +68,7 @@ class _NovelAppState extends State<NovelApp> {
       ),
     ),
     home: _controller != null
-        ? NovelWorkbench(controller: _controller!)
+        ? LibraryWorkbench(controller: _controller!)
         : Scaffold(
             body: Center(
               child: SingleChildScrollView(
@@ -116,14 +119,20 @@ class _NovelAppState extends State<NovelApp> {
 }
 
 class NovelWorkbench extends StatefulWidget {
-  const NovelWorkbench({super.key, required this.controller});
+  const NovelWorkbench({
+    super.key,
+    required this.controller,
+    this.embedded = false,
+  });
   final WorkspaceController controller;
+  final bool embedded;
   @override
   State<NovelWorkbench> createState() => _NovelWorkbenchState();
 }
 
 class _NovelWorkbenchState extends State<NovelWorkbench> {
   int _selected = 0;
+  String? _lastCreationId;
   final _editorKey = GlobalKey();
   WorkspaceController get controller => widget.controller;
   bool get enabled => !controller.busy && controller.pending == null;
@@ -132,28 +141,40 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
     listenable: controller,
     builder: (context, _) {
       final workspace = controller.workspace;
+      final confirmed = controller.lastConfirmedCommand;
+      if (confirmed?.operation == 'createChapter' &&
+          confirmed!.requestId != _lastCreationId &&
+          workspace != null) {
+        _lastCreationId = confirmed.requestId;
+        final index = workspace.chapters.indexWhere(
+          (c) => c.id == confirmed.payload['chapterId'],
+        );
+        if (index >= 0) _selected = index;
+      }
       return Scaffold(
-        appBar: AppBar(
-          title: Text(workspace?.title ?? '小说工作台'),
-          actions: [
-            if (controller.provider.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Center(
-                  child: Text(
-                    controller.provider.startsWith('fixture/')
-                        ? '本地演示'
-                        : 'DeepSeek',
+        appBar: widget.embedded
+            ? null
+            : AppBar(
+                title: Text(workspace?.title ?? '小说工作台'),
+                actions: [
+                  if (controller.provider.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Center(
+                        child: Text(
+                          controller.provider.startsWith('fixture/')
+                              ? '本地演示'
+                              : 'DeepSeek',
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: '刷新作品',
+                    onPressed: controller.busy ? null : controller.load,
+                    icon: const Icon(Icons.refresh),
                   ),
-                ),
+                ],
               ),
-            IconButton(
-              tooltip: '刷新作品',
-              onPressed: controller.busy ? null : controller.load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
         body: SafeArea(
           child: Column(
             children: [
@@ -193,15 +214,17 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           final wide = constraints.maxWidth >= 1120;
-                          final selected = _selected.clamp(
-                            0,
-                            workspace.chapters.length - 1,
-                          );
+                          final selected = workspace.chapters.isEmpty
+                              ? null
+                              : _selected.clamp(
+                                  0,
+                                  workspace.chapters.length - 1,
+                                );
                           final editor = workspace.chapters.isEmpty
                               ? const Center(child: Text('尚无正文'))
                               : IndexedStack(
                                   key: _editorKey,
-                                  index: selected,
+                                  index: selected ?? 0,
                                   children: [
                                     for (final chapter in workspace.chapters)
                                       ChapterEditor(
@@ -226,6 +249,7 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                                   width: 350,
                                   child: WorkspaceInspector(
                                     controller: controller,
+                                    allowDocumentEditing: !widget.embedded,
                                   ),
                                 ),
                               ],
@@ -244,6 +268,7 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                                           labelText: '章节',
                                         ),
                                         isExpanded: true,
+                                        hint: const Text('尚无章节'),
                                         items: [
                                           for (
                                             var i = 0;
@@ -258,10 +283,19 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                                               ),
                                             ),
                                         ],
-                                        onChanged: (value) => setState(
-                                          () => _selected = value ?? 0,
-                                        ),
+                                        onChanged: workspace.chapters.isEmpty
+                                            ? null
+                                            : (value) => setState(
+                                                () => _selected = value ?? 0,
+                                              ),
                                       ),
+                                    ),
+                                    IconButton(
+                                      tooltip: '新建章节',
+                                      onPressed: enabled
+                                          ? _createChapter
+                                          : null,
+                                      icon: const Icon(Icons.add),
                                     ),
                                     IconButton(
                                       tooltip: '知识库与写作助手',
@@ -284,6 +318,8 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                                                 WorkspaceInspector(
                                                   controller: controller,
                                                   showDocuments: true,
+                                                  allowDocumentEditing:
+                                                      !widget.embedded,
                                                 ),
                                           ),
                                         ),
@@ -312,6 +348,11 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
         padding: EdgeInsets.all(12),
         child: Text('正文', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
+      TextButton.icon(
+        onPressed: enabled ? _createChapter : null,
+        icon: const Icon(Icons.add),
+        label: const Text('新建章节'),
+      ),
       for (var i = 0; i < workspace.chapters.length; i++)
         ListTile(
           selected: i == _selected,
@@ -328,16 +369,24 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
           leading: const Icon(Icons.description_outlined),
           title: Text(document.title),
           subtitle: Text(_kind(document.kind)),
-          onTap: () => editDocument(context, controller, document),
+          onTap: widget.embedded
+              ? () => _viewDocument(context, document)
+              : () => editDocument(context, controller, document),
         ),
-      TextButton.icon(
-        onPressed: enabled
-            ? () => editDocument(context, controller, null)
-            : null,
-        icon: const Icon(Icons.add),
-        label: const Text('添加资料'),
-      ),
+      if (!widget.embedded)
+        TextButton.icon(
+          onPressed: enabled
+              ? () => editDocument(context, controller, null)
+              : null,
+          icon: const Icon(Icons.add),
+          label: const Text('添加资料'),
+        ),
     ],
+  );
+
+  void _createChapter() => showDialog<void>(
+    context: context,
+    builder: (_) => CreateChapterDialog(controller: controller),
   );
 }
 
@@ -532,7 +581,7 @@ class _ChapterEditorState extends State<ChapterEditor> {
     final instruction = await askInstruction(
       context,
       '改写选段',
-      '让林舟尚未得知凶手身份；保留悬念。',
+      '按我的要求改写所选段落，保持选段外的正文和已有设定一致。',
     );
     if (instruction == null || !mounted) return;
     await widget.controller.act('proposeEdit', {
@@ -549,21 +598,30 @@ class WorkspaceInspector extends StatelessWidget {
     super.key,
     required this.controller,
     this.showDocuments = false,
+    this.allowDocumentEditing = true,
   });
   final WorkspaceController controller;
   final bool showDocuments;
+  final bool allowDocumentEditing;
   @override
   Widget build(BuildContext context) {
     final workspace = controller.workspace!;
     final enabled = !controller.busy && controller.pending == null;
     final memory = workspace.currentMemory;
+    final hasEmptyChapter = workspace.chapters.any(
+      (c) => c.body.trim().isEmpty,
+    );
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Text('写作助手', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         Text(
-          workspace.memoryFresh ? '记忆与当前正文版本一致' : '记忆已失效，需要重建',
+          workspace.chapters.isEmpty
+              ? '尚无正文，可以开始起草第一章'
+              : workspace.memoryFresh
+              ? '记忆与当前正文版本一致'
+              : '记忆已失效，需要重建',
           style: TextStyle(
             color: workspace.memoryFresh
                 ? const Color(0xff335f57)
@@ -574,13 +632,16 @@ class WorkspaceInspector extends StatelessWidget {
         FilledButton.icon(
           onPressed:
               enabled &&
+                  !hasEmptyChapter &&
                   workspace.memoryFresh &&
                   !workspace.chapters.any((c) => c.needsReview)
               ? () async {
                   final instruction = await askInstruction(
                     context,
-                    '续写下一章',
-                    '让林舟与阿岚调查信封来源，遵守各角色的知情范围。',
+                    workspace.chapters.isEmpty ? '起草第一章' : '续写下一章',
+                    workspace.chapters.isEmpty
+                        ? '根据知识库中的设定起草第一章。请补充故事类型、主角和开篇场景。'
+                        : '根据已有正文和知识库续写下一章，遵守人物的知情范围。',
                   );
                   if (instruction != null) {
                     await controller.act('proposeChapter', {
@@ -590,10 +651,13 @@ class WorkspaceInspector extends StatelessWidget {
                 }
               : null,
           icon: const Icon(Icons.edit_note),
-          label: const Text('起草下一章'),
+          label: Text(workspace.chapters.isEmpty ? '起草第一章' : '起草下一章'),
         ),
+        if (hasEmptyChapter) const Text('请先填写并保存空白章节，再重建记忆或起草下一章。'),
         OutlinedButton(
-          onPressed: enabled ? () => controller.act('rebuildMemory') : null,
+          onPressed: enabled && !hasEmptyChapter
+              ? () => controller.act('rebuildMemory')
+              : null,
           child: const Text('重建记忆'),
         ),
         if (workspace.chapters.any((c) => c.needsReview))
@@ -694,14 +758,17 @@ class WorkspaceInspector extends StatelessWidget {
             ListTile(
               title: Text(d.title),
               subtitle: Text(_kind(d.kind)),
-              onTap: () => editDocument(context, controller, d),
+              onTap: allowDocumentEditing
+                  ? () => editDocument(context, controller, d)
+                  : () => _viewDocument(context, d),
             ),
-          TextButton(
-            onPressed: enabled
-                ? () => editDocument(context, controller, null)
-                : null,
-            child: const Text('添加资料'),
-          ),
+          if (allowDocumentEditing)
+            TextButton(
+              onPressed: enabled
+                  ? () => editDocument(context, controller, null)
+                  : null,
+              child: const Text('添加资料'),
+            ),
         ],
       ],
     );
@@ -794,6 +861,21 @@ String _kind(String kind) => switch (kind) {
   'plan' => '未来计划',
   _ => '外部参考',
 };
+
+void _viewDocument(BuildContext context, SourceDocument document) =>
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(document.title),
+        content: SingleChildScrollView(child: SelectableText(document.body)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
 
 Future<String?> askInstruction(
   BuildContext context,

@@ -292,10 +292,6 @@ void main() {
       throwsA(failure('model_unavailable')),
     );
     service = LibraryService(repository, model: NeverCalledModel());
-    await expectLater(
-      service.execute(generate),
-      throwsA(failure('operation_unavailable')),
-    );
     await service.execute(saveDocument(2));
     expect((await repository.load()).revision, 3);
     expect((await service.snapshot())['modelAvailable'], isTrue);
