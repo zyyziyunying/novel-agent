@@ -38,7 +38,7 @@ Future<void> main(List<String> args) async {
   final repository = await FileWorkspaceRepository.open(
     '${directory.path}/workspace.json',
   );
-  final model = fixture
+  final NovelModel model = fixture
       ? FixtureNovelModel()
       : DeepSeekNovelModel(
           ai,

@@ -5,6 +5,8 @@ import 'controller.dart';
 import 'gateway.dart';
 import 'library_gateway.dart';
 
+part 'discussion_controller.dart';
+
 /// Owns the catalog; each work owns a separate editor and request controller.
 class LibraryController extends ChangeNotifier {
   LibraryController(this.gateway);
@@ -13,6 +15,9 @@ class LibraryController extends ChangeNotifier {
   String? selectedId;
   String? selectedLibraryId;
   bool showingKnowledge = false;
+  bool showingDiscussion = false;
+  final Map<String, String> selectedDiscussions = {};
+  final Map<(String, String), DiscussionRequestState> discussionRequests = {};
   String? provider;
   bool modelAvailable = false;
   bool busy = false;
@@ -25,13 +30,26 @@ class LibraryController extends ChangeNotifier {
   Iterable<WorkspaceController> get workControllers => _controllers.values;
   WorkspaceController controllerFor(String id) => _controllers[id]!;
   bool get hasPending =>
-      pending != null || _controllers.values.any((c) => c.pending != null);
+      pending != null ||
+      _controllers.values.any((c) => c.pending != null) ||
+      discussionRequests.values.any((s) => s.pending != null);
   bool get canChangeCatalog => !busy && !hasPending;
   String newWorkId() => 'work-$_session-${++_sequence}';
   String newKnowledgeId(String kind) => '$kind-$_session-${++_sequence}';
 
+  void _changed() {
+    if (!_disposed) notifyListeners();
+  }
+
   void showKnowledge(bool show) {
     showingKnowledge = show;
+    showingDiscussion = false;
+    notifyListeners();
+  }
+
+  void showDiscussion(bool show) {
+    showingDiscussion = show;
+    showingKnowledge = false;
     notifyListeners();
   }
 
@@ -156,6 +174,17 @@ class LibraryController extends ChangeNotifier {
     workspace = result.workspace;
     provider = result.provider;
     modelAvailable = result.modelAvailable;
+    for (final state in discussionRequests.values) {
+      final turn = state.pending == null
+          ? null
+          : _discussionTurn(state.pending!);
+      if (turn != null && turn.status != 'pending') {
+        state.pending = null;
+        state.error = turn.status == 'completed'
+            ? null
+            : discussionFailure(turn.errorCode);
+      }
+    }
     for (final work in workspace!.works) {
       if (!_controllers.containsKey(work.id)) {
         final controller = WorkspaceController(

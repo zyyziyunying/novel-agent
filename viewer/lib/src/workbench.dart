@@ -810,7 +810,12 @@ class WorkspaceInspector extends StatelessWidget {
                   '此次使用的上下文',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                Text('作者要求：${proposal.context['authorInstruction']}'),
+                if (proposal.context['discussionSource'] case final Json source)
+                  SelectableText(
+                    '讨论来源：${source['workId']} / ${source['discussionId']} / ${source['messageId']}',
+                  )
+                else
+                  Text('作者要求：${proposal.context['authorInstruction']}'),
                 if (proposal.baseHeads.isEmpty) const Text('正文版本：无已有章节'),
                 for (final entry in proposal.baseHeads.entries)
                   Text(
@@ -823,7 +828,7 @@ class WorkspaceInspector extends StatelessWidget {
                     case final List manifest)
                   for (final d in manifest) ...[
                     SelectableText(
-                      '知识库：${d['libraryName']}（${d['libraryId']}）\n资料 ID：${d['documentId']} · 采用版本：${d['versionId']}',
+                      '知识库：${d['libraryName'] ?? d['libraryId']}（${d['libraryId']}）\n资料 ID：${d['documentId']} · 采用版本：${d['versionId']}',
                     ),
                     KnowledgeDetails(
                       version: KnowledgeVersion.fromJson(d['version']),

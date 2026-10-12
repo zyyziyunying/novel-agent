@@ -38,7 +38,7 @@ Future<void> main(List<String> args) async {
     final repository = await FileLibraryRepository.open(
       '${directory.path}/library-workspace.json',
     );
-    final model = fixture
+    final NovelModel? model = fixture
         ? FixtureNovelModel()
         : configured
         ? DeepSeekNovelModel(
@@ -47,6 +47,7 @@ Future<void> main(List<String> args) async {
           )
         : null;
     final service = LibraryService(repository, model: model);
+    await service.initialize();
     final runtime = LibraryRuntime(ai, service);
     final router = GenkitRouter()..addAction(runtime.action);
     final token = base64UrlEncode(

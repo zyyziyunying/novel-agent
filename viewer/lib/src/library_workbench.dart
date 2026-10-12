@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'library_controller.dart';
 import 'knowledge_panel.dart';
 import 'workbench.dart';
+import 'discussion_panel.dart';
 
 class LibraryWorkbench extends StatelessWidget {
   const LibraryWorkbench({super.key, required this.controller});
@@ -16,6 +17,16 @@ class LibraryWorkbench extends StatelessWidget {
         appBar: AppBar(
           title: const Text('小说工作台'),
           actions: [
+            IconButton(
+              tooltip: controller.showingDiscussion ? '返回正文' : '持续讨论',
+              onPressed: () =>
+                  controller.showDiscussion(!controller.showingDiscussion),
+              icon: Icon(
+                controller.showingDiscussion
+                    ? Icons.edit_note
+                    : Icons.forum_outlined,
+              ),
+            ),
             IconButton(
               tooltip: controller.showingKnowledge ? '返回正文' : '管理知识库',
               onPressed: () =>
@@ -139,7 +150,11 @@ class LibraryWorkbench extends StatelessWidget {
                         ),
                       )
                     : IndexedStack(
-                        index: controller.showingKnowledge ? 1 : 0,
+                        index: controller.showingKnowledge
+                            ? 1
+                            : controller.showingDiscussion
+                            ? 2
+                            : 0,
                         children: [
                           workspace.works.isEmpty
                               ? Center(
@@ -166,6 +181,21 @@ class LibraryWorkbench extends StatelessWidget {
                                   ],
                                 ),
                           KnowledgePanel(controller: controller),
+                          workspace.works.isEmpty
+                              ? const Center(child: Text('请先创建作品，再开始讨论。'))
+                              : IndexedStack(
+                                  index: workspace.works.indexWhere(
+                                    (w) => w.id == controller.selectedId,
+                                  ),
+                                  children: [
+                                    for (final work in workspace.works)
+                                      DiscussionPanel(
+                                        key: ValueKey('discussion-${work.id}'),
+                                        controller: controller,
+                                        workId: work.id,
+                                      ),
+                                  ],
+                                ),
                         ],
                       ),
               ),

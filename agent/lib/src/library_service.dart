@@ -9,6 +9,8 @@ import 'model.dart';
 import 'repository.dart';
 import 'service.dart';
 
+part 'library_discussion.dart';
+
 const _bodyOperations = {
   'createChapter',
   'proposeChapter',
@@ -34,6 +36,9 @@ class LibraryService {
   final NovelModel? model;
   Future<void> _tail = Future.value();
   final Map<String, (String, Future<Json>)> _inFlight = {};
+  Future<void>? _initialization;
+
+  Future<void> initialize() => _initialization ??= _locked(_recoverDiscussions);
 
   Future<T> _locked<T>(Future<T> Function() work) {
     final future = _tail.then((_) => work());
@@ -41,8 +46,10 @@ class LibraryService {
     return future;
   }
 
-  Future<Json> snapshot() =>
-      _locked(() async => _result(await repository.load()));
+  Future<Json> snapshot() async {
+    await initialize();
+    return _locked(() async => _result(await repository.load()));
+  }
 
   Json _result(LibraryWorkspace workspace, {bool reused = false}) => {
     'workspace': workspace.toJson(),
@@ -51,7 +58,12 @@ class LibraryService {
     'reused': reused,
   };
 
-  Future<Json> execute(LibraryCommand command) {
+  Future<Json> execute(LibraryCommand command) async {
+    await initialize();
+    return _execute(command);
+  }
+
+  Future<Json> _execute(LibraryCommand command) {
     final fingerprint = sha256
         .convert(utf8.encode(command.canonical))
         .toString();
@@ -64,7 +76,8 @@ class LibraryService {
       }
       return pending.$2;
     }
-    if (!_modelOperations.contains(command.operation)) {
+    if (!_modelOperations.contains(command.operation) &&
+        command.operation != 'sendDiscussionMessage') {
       return _locked(() async {
         final base = await repository.load();
         if (_check(base, command, fingerprint)) {
@@ -72,11 +85,16 @@ class LibraryService {
         }
         final (works, libraries) = _bodyOperations.contains(command.operation)
             ? (await _applyBody(base, command), base.libraries)
+            : command.operation == 'createDiscussion' ||
+                  command.operation == 'adoptDiscussionMessage'
+            ? _applyDiscussion(base, command)
             : _apply(base, command);
         return _commit(base, command, fingerprint, works, libraries);
       });
     }
-    final future = _generate(command, fingerprint);
+    final future = command.operation == 'sendDiscussionMessage'
+        ? _sendDiscussion(command, fingerprint)
+        : _generate(command, fingerprint);
     _inFlight[command.requestId] = (fingerprint, future);
     unawaited(
       future.then<void>(
@@ -306,14 +324,6 @@ class LibraryService {
           for (final library in libraries)
             library.id == owner.id ? replacement : library,
         ];
-      case 'sendDiscussionMessage':
-        if (model == null) {
-          throw const LibraryFailure('model_unavailable', '未配置模型，资料读写仍可使用。');
-        }
-        throw const LibraryFailure(
-          'operation_unavailable',
-          '该模型操作尚未接入格式 2 服务。',
-        );
       default:
         throw const LibraryFailure('operation_unavailable', '该操作将在后续里程碑接入。');
     }
