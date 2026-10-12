@@ -35,7 +35,7 @@ flutter run -d web-server --web-hostname localhost --web-port 4300
 
 打开 `http://localhost:4300`，填写 Agent 启动时显示的**工作台会话令牌**。Agent 地址默认 `http://127.0.0.1:4100`。令牌只保存在页面内存中，刷新页面后重新填写。
 
-首次启动创建空 `library-workspace.json`，在界面创建并命名作品，再通过“新建章节”开始手写，或让模型起草第一章。新服务不读取或迁移旧 `workspace.json`。已有格式 2 数据重启后继续读取；损坏、旧格式或未知格式会拒绝启动，不会静默重置。
+默认读取 `.local/workbench-web-data/library-workspace.json`；可用 `NOVEL_DATA_DIR` 指定其他数据目录。目录中尚无该文件时创建空工作区，在界面创建并命名作品，再通过“新建章节”开始手写，或让模型起草第一章。新服务不读取或迁移旧 `workspace.json`。已有格式 2 数据重启后继续读取；损坏、旧格式或未知格式会拒绝启动，不会静默重置。
 
 真实 DeepSeek 模式：在终端一设置 `DEEPSEEK_API_KEY`，然后运行默认入口。默认模型为 `deepseek-flash`，通过 `DEEPSEEK_MODEL` 切换。供应商密钥仅在 Agent 中读取；本地配置放在 `.local/`。示例字段见 [.env.example](.env.example)，程序读取进程环境，不会自动加载该文件。
 
@@ -45,7 +45,7 @@ flutter run -d web-server --web-hostname localhost --web-port 4300
 tool/run_deepseek.sh
 ```
 
-该脚本默认使用 `.local/deepseek-data` 并启动格式 2 服务，端口仍为 `4100`。格式 1 独立入口 `agent/bin/prototype_agent.dart` 保留用于原型回归，不兼容当前工作台。两个入口共享目录锁；同时运行时指定不同目录与端口。
+该脚本与默认 Agent 入口统一使用 `.local/workbench-web-data`，可用 `NOVEL_DATA_DIR` 指定其他目录；启动格式 2 服务，端口仍为 `4100`。格式 1 独立入口 `agent/bin/prototype_agent.dart` 保留用于原型回归，其默认目录仍为 `.local/novel-data`，不兼容当前工作台。两个入口共享目录锁；同时运行时指定不同目录与端口。
 
 | 环境变量 | 默认值／用途 |
 | --- | --- |
@@ -53,7 +53,7 @@ tool/run_deepseek.sh
 | `DEEPSEEK_MODEL` | `deepseek-flash` |
 | `NOVEL_AGENT_PORT` | `4100`，仅绑定本机回环地址 |
 | `NOVEL_VIEWER_ORIGIN` | `http://localhost:4300`，精确匹配浏览器来源 |
-| `NOVEL_DATA_DIR` | 根目录启动时为 `.local/novel-data` |
+| `NOVEL_DATA_DIR` | 格式 2 服务默认 `.local/workbench-web-data`；可指定其他目录 |
 
 ## 体验闭环
 

@@ -15,7 +15,9 @@ Future<void> main(List<String> args) async {
   final configured = (env['DEEPSEEK_API_KEY'] ?? '').trim().isNotEmpty;
   final port = int.parse(env['NOVEL_AGENT_PORT'] ?? '4100');
   final origin = env['NOVEL_VIEWER_ORIGIN'] ?? 'http://localhost:4300';
-  final directory = Directory(env['NOVEL_DATA_DIR'] ?? '.local/novel-data');
+  final directory = Directory(
+    env['NOVEL_DATA_DIR'] ?? '.local/workbench-web-data',
+  );
   await directory.create(recursive: true);
   // Reject a second writer before reading or creating the store.
   final lock = await File(

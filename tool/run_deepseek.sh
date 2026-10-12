@@ -16,5 +16,5 @@ if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
 fi
 
 export DEEPSEEK_API_KEY
-export NOVEL_DATA_DIR="${NOVEL_DATA_DIR:-.local/deepseek-data}"
+export NOVEL_DATA_DIR="${NOVEL_DATA_DIR:-.local/workbench-web-data}"
 exec dart run agent/bin/novel_agent.dart
