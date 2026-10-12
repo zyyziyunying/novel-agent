@@ -1,6 +1,6 @@
 # Novel Agent Lab
 
-面向小说作者的知识库与写作工作台。作者主导创作，Agent 辅助续写和改稿。采用 Flutter Web、Dart Agent、Genkit Dart 1.0.0 与 DeepSeek 插件。工作台已接入格式 2 多作品、独立知识库、资料版本采用与持续讨论；文件导入继续按 [SPEC](SPEC.md#020-推进计划) 推进。
+面向小说作者的知识库与写作工作台。作者主导创作，Agent 辅助续写和改稿。采用 Flutter Web、Dart Agent、Genkit Dart 1.0.0 与 DeepSeek 插件。工作台已接入格式 2 多作品、独立知识库、资料版本采用与持续讨论；[外部工具写入流程](docs/external-write.md) 已完成工程验收，整体验收与发布按 [SPEC](SPEC.md#020-推进计划) 推进。
 
 软件版本以 [VERSION](VERSION) 为准，当前登记基线保持 0.1.0；0.2.0 尚未发布。版本规则见 [版本管理](docs/versioning.md)，已实现变更见 [CHANGELOG](CHANGELOG.md)，实现边界见 [架构说明](docs/architecture.md#m5-持续讨论与作者选择采用成果)。
 
@@ -88,7 +88,7 @@ curl http://127.0.0.1:4100/libraryAction \
   --data '{"data":{"apiVersion":2,"requestId":"create-first-work","expectedRevision":0,"target":{"kind":"catalog"},"operation":"createWork","payload":{"id":"first-work","title":"第一部作品"}}}'
 ```
 
-资料服务支持创建／命名知识库以及追加资料版本，不调用模型。提交时使用当前 revision、明确目标、未使用的请求 ID；更新资料需匹配预期 head，并使用新版本 ID。结果未知时保留原请求，服务优先检查已提交回执。资料写入不自动采用到作品；`setKnowledgeLinks` 以作品为目标，提交完整关联库清单及各库的资料 ID → 版本 ID 映射（空映射仅关联）。版本必须存在；取消采用与关联也通过该操作提交。讨论与成果采用已开放，文件导入仍待 M6。
+资料服务支持创建／命名知识库以及追加资料版本，不调用模型。提交时使用当前 revision、明确目标、未使用的请求 ID；更新资料需匹配预期 head，并使用新版本 ID。结果未知时保留原请求，服务优先检查已提交回执。资料写入不自动采用到作品；`setKnowledgeLinks` 以作品为目标，提交完整关联库清单及各库的资料 ID → 版本 ID 映射（空映射仅关联）。版本必须存在；取消采用与关联也通过该操作提交。讨论与成果采用已开放；外部工具新增／更新资料、来源字段、冲突与原请求重试说明及可运行 JSON 示例见 [外部工具写入资料](docs/external-write.md)。外部保存后通过工作台顶部“刷新作品”查看资料与历史。
 
 ## 验证
 
@@ -107,7 +107,7 @@ flutter test --no-pub
 flutter build web --no-pub
 ```
 
-Agent／契约测试覆盖格式 2、持久化、无模型 HTTP、事务去重、多作品正文隔离、记忆与版本冲突，讨论三轮与失败重试、SIGKILL 后恢复及成果采用，以及格式 1 原型回归和 Genkit DeepSeek 模拟 HTTP。工作台测试覆盖单作品编辑行为、多作品切换与草稿、迟到响应、知识库管理、固定版本采用、来源展示、冲突编辑和窄屏交互，以及讨论三轮交互、切换输入、成果采用、待完成回执和迟到响应。
+Agent／契约测试覆盖格式 2、持久化、无模型 HTTP、事务去重、多作品正文隔离、记忆与版本冲突，讨论三轮与失败重试、SIGKILL 后恢复及成果采用，以及格式 1 原型回归和 Genkit DeepSeek 模拟 HTTP。外部写入验收直接提交文档 JSON 示例，覆盖工具／原始来源、鉴权、版本冲突、失败恢复与重启复用。工作台测试覆盖单作品编辑行为、多作品切换与草稿、迟到响应、知识库管理、固定版本采用、来源展示、冲突编辑和窄屏交互，以及讨论三轮交互、切换输入、成果采用、待完成回执和迟到响应；外部写入后的刷新组件测试核对原目标、来源、选择与固定采用版本。
 
 历史固定虚构样例的三项 [真实 DeepSeek 接口烟测](docs/research/2026-10-10-deepseek-live-smoke.md) 使用格式 1 原型；M3–M5 新流程由工程测试与演示模型验证，本轮未执行真实接口调用；新讨论真实接口烟测留待 M7 发布验收。中文成稿质量与实际成本仍待正式评测。
 
@@ -119,6 +119,7 @@ Agent／契约测试覆盖格式 2、持久化、无模型 HTTP、事务去重�
 | [版本管理](docs/versioning.md) | 版本来源、检查与发布标签规则 |
 | [CHANGELOG.md](CHANGELOG.md) | 已实现变更与版本基线 |
 | [架构说明](docs/architecture.md) | 包边界、事务、契约与实现限制 |
+| [外部工具写入资料](docs/external-write.md) | 本机鉴权 HTTP、新增／更新示例、来源、冲突与重试 |
 | [小说 Agent 调研索引](docs/research/README.md) | 模型、写作评测与后续调研 |
 | [InkOS 学习笔记](docs/references/inkos-learning.md) | 固定上游快照的机制与限制 |
 | [AGENTS.md](AGENTS.md) | 执行规则 |
