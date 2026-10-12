@@ -1,6 +1,6 @@
 # 项目架构
 
-更新日期：2026-10-12。产品范围与行为要求由 [SPEC.md](../SPEC.md) 维护；前文记录 `prototype_agent.dart` 的 0.1.0 运行边界，后文记录 0.2.0 M1 契约、M2 资料服务及后续规则。软件版本与发布规则见 [版本管理](versioning.md)，其版本号独立于下文的数据格式与正文版本。参考本机 `harrypet_flutter/labs/story-pet-agent` 的包分工，未修改该项目或复制其宠物／世界模板业务。
+更新日期：2026-10-12。产品范围与行为要求由 [SPEC.md](../SPEC.md) 维护；前文记录 `prototype_agent.dart` 的 0.1.0 运行边界，后文记录 0.2.0 M1 契约、M2 资料服务与 M3 多作品正文和工作台。软件版本与发布规则见 [版本管理](versioning.md)，其版本号独立于下文的数据格式与正文版本。参考本机 `harrypet_flutter/labs/story-pet-agent` 的包分工，未修改该项目或复制其宠物／世界模板业务。
 
 ## 包与权威状态
 
@@ -66,7 +66,7 @@ DeepSeek 使用 JSON object 模式，schema 通过插件写入提示词，仍需
 
 ## 0.2.0 M1：多作品与知识契约
 
-状态：共享包已实现以下格式 2 的模型、严格解析、关联校验和请求规范化，入口为 [library.dart](../packages/novel_contracts/lib/src/library.dart)。默认 Agent 的 M2 资料服务使用格式 2；当前工作台通过独立原型入口使用前文格式 1。正文、资料采用及讨论服务按 M3–M6 接入；下文明确区分已实现的 M2 与后续规则。
+状态：共享包已实现以下格式 2 的模型、严格解析、关联校验和请求规范化，入口为 [library.dart](../packages/novel_contracts/lib/src/library.dart)。默认 Agent 与工作台使用格式 2；M2 接入资料服务，M3 接入多作品正文与界面，资料采用和讨论继续按 M4–M6 推进。
 
 ### 数据归属与版本采用
 
@@ -125,8 +125,8 @@ M2 起的服务提交顺序固定为：
 
 - 启动先锁住数据目录；已有新快照必须完整校验，损坏、旧格式和未知格式明确拒绝，不能用空数据静默覆盖。
 - 基础操作在同一服务队列内读取、先查回执、检查全局 revision 与资料 head、构造完整快照，校验后 flush 临时文件并 rename；失败保留已提交快照。回执与资料一起提交，不另存索引。重启忽略未提交 `.tmp`，读取已提交内容和回执；同内容重试返回当前快照及 `reused: true`。没有模型调用，无需单独维护在途请求表。仓库的修订检查是单服务、目录独占前提下的保护，不是跨进程数据库 CAS；不承诺断电耐久性。
-- 资料服务启动不以模型密钥为前提，无密钥也开放读写。真实模型仅在环境中有密钥时配置，fixture 仅由 `--fixture` 配置；未配置模型的生成请求报告 `model_unavailable`。M2 尚未实现格式 2 的正文／讨论模型流程，有配置时返回 `operation_unavailable`，不调用模型、不写失败回执。资料保存始终不调用模型。
-- 默认入口与独立 [prototype_agent.dart](../agent/bin/prototype_agent.dart) 共享 [本地 HTTP 鉴权边界](../agent/lib/src/local_http.dart)：回环绑定、每次启动随机会话令牌、精确 Origin 与关闭 Genkit 反射服务。独立原型只用于当前界面，不在格式 2 服务注册旧路由，不做协议适配。
+- 资料服务启动不以模型密钥为前提，无密钥也开放读写。真实模型仅在环境中有密钥时配置，fixture 仅由 `--fixture` 配置；未配置模型的生成请求报告 `model_unavailable`。正文模型操作已由 M3 接入；讨论仍待 M5，有配置时返回 `operation_unavailable`，不调用模型、不写失败回执。资料保存始终不调用模型。
+- 默认入口与独立 [prototype_agent.dart](../agent/bin/prototype_agent.dart) 共享 [本地 HTTP 鉴权边界](../agent/lib/src/local_http.dart)：回环绑定、每次启动随机会话令牌、精确 Origin 与关闭 Genkit 反射服务。当前界面使用格式 2 服务；独立原型保留用于工程回归，不在格式 2 服务注册旧路由，不兼容当前工作台。
 
 已开放的 M2 操作：
 
@@ -154,3 +154,24 @@ M6 首轮导入 `.txt` 和 `.md`，每文件上限 1 MiB，严格 UTF-8 解码�
 ### M2 验证依据
 
 [library_service_test.dart](../agent/test/library_service_test.dart) 验证目标隔离、历史追加、来源保留、去重优先级、并发冲突和模型解耦；[library_repository_test.dart](../agent/test/library_repository_test.dart) 验证空初始化、冷启动、旧／损坏格式拒绝、临时写入失败和未提交临时快照；[library_server_test.dart](../agent/test/library_server_test.dart) 启动真实本机进程，验证无密钥鉴权 HTTP、强制重启去重、单写锁、存储失败恢复和关闭调试反射。完整命令见 [README 验证](../README.md#验证)。这些是工程与本地进程证据，不包含断电测试、格式 2 模型写作、UI 接入或真实 DeepSeek 质量验证。
+
+
+### M3 多作品与目标隔离
+
+已实现：[LibraryWorkbench](../viewer/lib/src/library_workbench.dart) 与 [LibraryController](../viewer/lib/src/library_controller.dart) 使用格式 2 网关，支持创建、命名、列出和切换作品。默认 Agent 与 `tool/run_deepseek.sh` 服务当前工作台；格式 1 独立入口保留用于原型回归。新服务仍从空数据开始，不迁移旧原型。
+
+- 每部作品有独立的编辑与请求控制器，工作台按作品保持页面实例，章节仍按 ID 保持编辑实例。即使不同作品使用相同章节 ID，草稿、选区、章节选择、正文保存确认、错误与未知结果也不混用。草稿仅保存在页面内存中，切换和宽窄布局变化不丢失，刷新页面不恢复未保存内容。
+- 正文状态、历史菜单、记忆证据和提案上下文中的正文版本，按该章节 `versions` 的追加顺序显示“第 N 版”；记忆及提案的来源标签包含章节 number 和标题，以区分同名章节。恢复只切换 head，原序号保持；之后保存继续追加。内部 versionId 仍供恢复与来源校验使用，原快照无需改写，全局 revision 继续用于并发提交。
+- 每个作品网关创建时固定 workId；发起操作、生成要求对话框、历史操作和原请求重试都使用该目标，不读取提交时的界面选择。后台状态提供返回原作品的入口。响应更新目录和各作品视图，但不改变当前选择；修订号较旧的响应不会回退已有快照。刷新已读到成功回执后，原连接的迟到失败仍按成功处理，不重新阻断写入。
+- [LibraryService](../agent/lib/src/library_service.dart) 接入 `createChapter`、`saveChapter`、`proposeChapter`、`proposeEdit`、`acceptProposal`、`rejectProposal`、`restoreVersion`、`rebuildMemory`、`confirmReview`。它对一个作品的纯领域视图复用已有正文事务引擎，再将目标作品、全局修订号与带目标的回执提交为一个格式 2 快照；领域视图不作为格式 1 HTTP 或存储入口。
+- `createChapter` 使用作品目标与 `{chapterId, title}`，在末尾追加具名空白章节和空正文初始版本，不调用模型；重复章节 ID 被拒绝，原请求重试复用回执。空正文版本可序列化并恢复，已有非空版本仍兼容。宽窄界面均提供手动入口，创建确认后选中新章，其他章节草稿保持；响应丢失时标题保留并允许核对或原请求重试。空白章节先填写保存，再重建记忆或续写，防止空章产生事实。AI 新章 ID 避开已有手动章节。
+- 生成与记忆重建在提交队列外调用模型，同请求的在途生成合并；提交前重新检查全局 revision，任何其他提交都会使迟到生成冲突。手工正文与目录操作不调用模型，无密钥仍可新建章节、保存正文、命名、复查与恢复。已提交回执先于修订号和模型可用性检查，重启或响应丢失后可复用原请求。
+- 上下文只含目标作品正文、当前记忆与明确采用的资料版本，并保存 workId 和来源清单。接受提案时再次核对正文 heads 与采用版本；同文资料换版也不能绕过冲突。改旧章、历史恢复、记忆重建及后续复查只影响目标作品，原有选段外保留与作者接受／拒绝边界沿用。
+
+知识库管理和作品采用入口仍待 M4，讨论待 M5，文件导入待 M6。当前资料区只读展示作品已采用的资料；M3 不为新作品隐式创建或采用知识库。模型未配置时，调用生成显式失败，作品管理仍可用。
+
+验证入口：[library_body_test.dart](../agent/test/library_body_test.dart) 覆盖正文与历史隔离、拒绝与选段外保留、旧章复查、记忆恢复、无模型手工操作、在途重复、失败重试及正文／资料来源冲突；[library_server_test.dart](../agent/test/library_server_test.dart) 以真实本机 HTTP 进程保存两作品，再强制重启核对名称、正文历史、提案、记忆与回执。[library_workbench_test.dart](../viewer/test/library_workbench_test.dart) 覆盖同章节 ID 的草稿与选区隔离、作品命名、宽窄布局、切换后的保存／生成响应、失败、原请求重试与刷新确认回执；[library_gateway_test.dart](../viewer/test/library_gateway_test.dart) 覆盖格式 2 路由、鉴权头、请求目标与确定／未知失败；[library_controller_test.dart](../viewer/test/library_controller_test.dart) 核对较旧的 A 响应不能回退刷新及 B 保存后的目录，并覆盖刷新先确认回执、原连接后失败的交错；没有原请求回执时仍保持结果未知。以上属于工程、测试模型与演示验证，没有执行本轮真实 DeepSeek 调用或中文写作质量评测。
+
+2026-10-12 验证结果：168 项 Agent／契约回归通过；补充手动章节入口及章节版本显示后，56 项工作台测试、`dart analyze`、`dart run tool/version.dart --check`、`flutter build web --no-pub` 通过。新增验证覆盖空白章节的无模型 HTTP 创建、强制重启与手写保存、重复请求、空章记忆阻断、章节 ID 冲突及宽窄界面的手动创建、标题校验和旧章草稿保留。版本显示的 4 项组件回归在各自修复前失败、修复后通过，覆盖跨作品／章节序号、目录命名、恢复请求的原 ID、恢复后保存、记忆／提案中的来源版本及同名章节的事实与原文证据归属；见 [workbench_test.dart](../viewer/test/workbench_test.dart) 与 [library_workbench_test.dart](../viewer/test/library_workbench_test.dart)。此前审核发现的迟到失败覆盖成功回执问题已修复，对应控制器与组件回归在修复前失败、修复后通过。浏览器核对已显示章节加号、标题对话框与两作品各自的第 2 版，历史菜单显示本章序号；原作品及正文保持可读。
+
+同日补充同名章节的浏览器完整流程：在独立验收作品中手动创建、保存两章“重逢”，两章均为第 2 版时，重建记忆后的事实及原文证据、选段改稿提案上下文均可通过“第 1 章／第 2 章”区分。拒绝提案保留原文；接受第二章改稿后仅该章升为第 3 版，记忆失效并阻止续写。重建后，记忆证据和新续写提案分别引用第一章第 2 版、第二章第 3 版；拒绝续写不新增章节，刷新后正文及记忆来源仍一致。保存快照中的章节身份、原文证据、提案来源和状态也已核对。本次使用 `fixture/local` 本地演示模式，未执行真实 DeepSeek 调用或中文写作质量评测。
