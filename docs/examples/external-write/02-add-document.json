@@ -1,0 +1,30 @@
+{
+  "data": {
+    "apiVersion": 2,
+    "requestId": "external-example-add-document",
+    "expectedRevision": 2,
+    "target": {
+      "kind": "library",
+      "libraryId": "external-example-library",
+      "workId": "external-example-work"
+    },
+    "operation": "saveDocument",
+    "payload": {
+      "documentId": "navigation-notes",
+      "expectedVersionId": null,
+      "version": {
+        "id": "navigation-v1",
+        "title": "沿海航路笔记",
+        "kind": "reference",
+        "body": "  沿海航路笔记。\n资料仅供参考，具体设定由作者确认。\n",
+        "provenance": {
+          "writer": {"kind": "tool", "id": "Codex"},
+          "sources": [
+            {"kind": "web", "reference": "https://example.com/research/navigation"}
+          ]
+        },
+        "associatedWorkId": "external-example-work"
+      }
+    }
+  }
+}

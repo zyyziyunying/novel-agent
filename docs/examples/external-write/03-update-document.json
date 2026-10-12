@@ -1,0 +1,31 @@
+{
+  "data": {
+    "apiVersion": 2,
+    "requestId": "external-example-update-document",
+    "expectedRevision": 3,
+    "target": {
+      "kind": "library",
+      "libraryId": "external-example-library",
+      "workId": "external-example-work"
+    },
+    "operation": "saveDocument",
+    "payload": {
+      "documentId": "navigation-notes",
+      "expectedVersionId": "navigation-v1",
+      "version": {
+        "id": "navigation-v2",
+        "title": "沿海航路笔记",
+        "kind": "reference",
+        "body": "沿海航路笔记：补充季风与港口停靠安排。\n具体设定仍由作者确认。\n",
+        "provenance": {
+          "writer": {"kind": "tool", "id": "Codex"},
+          "sources": [
+            {"kind": "web", "reference": "https://example.com/research/navigation"},
+            {"kind": "author", "reference": "作者补充：关注季风对航程的影响"}
+          ]
+        },
+        "associatedWorkId": "external-example-work"
+      }
+    }
+  }
+}

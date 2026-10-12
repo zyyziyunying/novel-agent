@@ -312,6 +312,41 @@ void main() {
     ]);
   });
 
+  test('模型写作失败后仍可由工具新增与更新资料，保存不再调用模型', () async {
+    await seed();
+    service = LibraryService(repository, model: NeverCalledModel());
+    final before = (await repository.load()).work('work-a').toJson();
+    await expectLater(
+      service.execute(
+        command(
+          'failed-generation',
+          2,
+          'proposeChapter',
+          {'instruction': '起草第一章'},
+          target: CommandTarget.work('work-a'),
+        ),
+      ),
+      throwsA(failure('model_failed')),
+    );
+    expect((await repository.load()).revision, 2);
+    await service.execute(saveDocument(2));
+    await service.execute(
+      saveDocument(
+        3,
+        requestId: 'after-failure-update',
+        previous: 'v1',
+        versionId: 'v2',
+        body: '工具更新的资料',
+      ),
+    );
+    final workspace = await repository.load();
+    expect(workspace.library('library-a').documents.single.head, 'v2');
+    expect(workspace.library('library-a').documents.single.versions.length, 2);
+    expect(workspace.work('work-a').toJson(), before);
+    expect(workspace.receipts.containsKey('failed-generation'), isFalse);
+    expect((await service.execute(saveDocument(2)))['reused'], isTrue);
+  });
+
   test('仓库 CAS 冲突转换为版本冲突，失败后队列可继续工作', () async {
     final store = ConflictingRepository();
     final service = LibraryService(store);

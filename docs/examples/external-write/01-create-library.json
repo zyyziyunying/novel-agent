@@ -1,0 +1,10 @@
+{
+  "data": {
+    "apiVersion": 2,
+    "requestId": "external-example-create-library",
+    "expectedRevision": 1,
+    "target": {"kind": "catalog"},
+    "operation": "createLibrary",
+    "payload": {"id": "external-example-library", "name": "外部调研库"}
+  }
+}
