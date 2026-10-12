@@ -4,6 +4,8 @@
 
 软件版本以 [VERSION](VERSION) 为准；当前原型登记为 0.1.0，下一阶段 0.2.0 的需求与推进计划见 [SPEC.md](SPEC.md#020-推进计划)。版本规则见 [版本管理](docs/versioning.md)，已实现变更见 [CHANGELOG](CHANGELOG.md)。
 
+0.2.0 的 M1 已建立多作品、知识库、资料版本和讨论契约，详见 [M1 架构说明](docs/architecture.md#020-m1多作品与知识契约)；当前 Agent 与工作台继续使用格式 1，新格式服务和交互按后续阶段接入。
+
 ## 本地运行
 
 已验证工具环境：Flutter 3.44.1、Dart 3.12.1。Genkit 相关依赖固定为 1.0.0，并提交根目录 `pubspec.lock`。
