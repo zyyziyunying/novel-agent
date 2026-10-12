@@ -55,6 +55,205 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('章节版本按本章历史编号，恢复传原 ID，恢复后保存追加新序号', (tester) async {
+    final gateway = FakeGateway();
+    final original = gateway.workspace.chapters.first;
+    final chapter = Chapter(
+      id: original.id,
+      number: 1,
+      title: original.title,
+      head: 'version-130',
+      versions: const [
+        TextVersion(id: 'version-11', body: '第一版正文'),
+        TextVersion(id: 'version-58', body: '第二版正文'),
+        TextVersion(id: 'version-130', body: '第三版正文'),
+      ],
+    );
+    gateway.workspace = gateway.workspace.replace(
+      revision: 130,
+      chapters: [chapter, gateway.workspace.chapters[1]],
+      memories: [],
+    );
+    await mount(tester, gateway);
+    expect(find.text('已保存 · 第 3 版'), findsOneWidget);
+    expect(find.textContaining('version-130'), findsNothing);
+    await tester.tap(find.text('历史版本'));
+    await tester.pumpAndSettle();
+    expect(find.text('第 3 版（当前）'), findsOneWidget);
+    expect(find.text('恢复第 2 版'), findsOneWidget);
+    await tester.tap(find.text('恢复第 1 版'));
+    await tester.pumpAndSettle();
+    expect(gateway.commands.last.payload, {
+      'chapterId': chapter.id,
+      'versionId': 'version-11',
+    });
+    expect(find.text('已保存 · 第 1 版'), findsOneWidget);
+    expect(gateway.workspace.chapters.first.versions.length, 3);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(ValueKey('body-${chapter.id}')))
+          .controller!
+          .text,
+      '第一版正文',
+    );
+    await tester.enterText(
+      find.byKey(ValueKey('body-${chapter.id}')),
+      '恢复后新写的正文',
+    );
+    await tester.pump();
+    await tester.tap(find.text('保存正文').first);
+    await tester.pumpAndSettle();
+    expect(find.text('已保存 · 第 4 版'), findsOneWidget);
+    expect(gateway.workspace.chapters.first.versions.length, 4);
+    await tester.tap(find.text('历史版本'));
+    await tester.pumpAndSettle();
+    expect(find.text('恢复第 3 版'), findsOneWidget);
+    await tester.tap(find.text('恢复第 3 版'));
+    await tester.pumpAndSettle();
+    expect(gateway.commands.last.payload['versionId'], 'version-130');
+    expect(find.text('已保存 · 第 3 版'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('章节版本在记忆证据与提案上下文中显示对应章节的历史序号', (tester) async {
+    final gateway = FakeGateway();
+    final original = gateway.workspace.chapters.first;
+    final chapter = Chapter(
+      id: original.id,
+      number: 1,
+      title: original.title,
+      head: 'version-90',
+      versions: [
+        TextVersion(id: 'version-4', body: original.body),
+        TextVersion(id: 'version-37', body: original.body),
+        TextVersion(id: 'version-90', body: original.body),
+      ],
+    );
+    final chapters = [chapter, gateway.workspace.chapters[1]];
+    gateway.workspace = gateway.workspace.replace(
+      chapters: chapters,
+      memories: [
+        MemorySnapshot(
+          id: 'test-memory',
+          sourceHeads: {for (final c in chapters) c.id: c.head},
+          facts: [
+            for (final c in chapters)
+              StoryFact(
+                text: '测试事实',
+                chapterId: c.id,
+                versionId: c.head,
+                evidence: c.body.substring(0, 2),
+              ),
+          ],
+        ),
+      ],
+      proposals: [
+        Proposal(
+          id: 'test-proposal',
+          chapterId: chapter.id,
+          title: chapter.title,
+          body: '待接受的修改提案',
+          baseHeads: {chapter.id: 'version-37'},
+          baseRevision: 37,
+          status: 'pending',
+          provider: 'fixture/local',
+          context: {'authorInstruction': '修改开篇', 'documents': []},
+          usage: {},
+        ),
+      ],
+    );
+    await mount(tester, gateway);
+    final evidence = find.text('第 1 章 · ${chapter.title} · 第 3 版');
+    await tester.ensureVisible(evidence);
+    expect(evidence, findsOneWidget);
+    await tester.ensureVisible(find.text('查看修改与上下文'));
+    await tester.tap(find.text('查看修改与上下文'));
+    await tester.pumpAndSettle();
+    expect(find.text('正文版本：第 1 章 · ${chapter.title} · 第 2 版'), findsOneWidget);
+    expect(find.textContaining('version-37'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('同名章节来源在记忆与提案中按章节序号区分，事实证据仍属于原章节', (tester) async {
+    final gateway = FakeGateway();
+    final chapters = [
+      for (var number = 1; number <= 2; number++)
+        Chapter(
+          id: 'chapter-$number',
+          number: number,
+          title: '重逢',
+          head: 'chapter-$number-v2',
+          versions: [
+            TextVersion(id: 'chapter-$number-v1', body: '第 $number 章旧正文'),
+            TextVersion(id: 'chapter-$number-v2', body: '第 $number 章当前正文'),
+          ],
+        ),
+    ];
+    final sourceHeads = {for (final c in chapters) c.id: c.head};
+    gateway.workspace = gateway.workspace.replace(
+      chapters: chapters,
+      memories: [
+        MemorySnapshot(
+          id: 'same-title-memory',
+          sourceHeads: sourceHeads,
+          facts: [
+            for (final c in chapters)
+              StoryFact(
+                text: '第 ${c.number} 章事实',
+                chapterId: c.id,
+                versionId: c.head,
+                evidence: c.body,
+              ),
+          ],
+        ),
+      ],
+      proposals: [
+        Proposal(
+          id: 'same-title-proposal',
+          chapterId: chapters.first.id,
+          title: '重逢',
+          body: '待接受的修改',
+          baseHeads: sourceHeads,
+          baseRevision: 0,
+          status: 'pending',
+          provider: 'fixture/local',
+          context: {'authorInstruction': '检查来源', 'documents': []},
+          usage: {},
+        ),
+      ],
+    );
+    await mount(tester, gateway);
+    for (final chapter in chapters) {
+      final label = find.text('第 ${chapter.number} 章 · 重逢 · 第 2 版');
+      expect(label, findsOneWidget);
+      final evidenceBlock = find
+          .ancestor(of: label, matching: find.byType(Column))
+          .first;
+      expect(
+        find.descendant(
+          of: evidenceBlock,
+          matching: find.text('第 ${chapter.number} 章事实'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: evidenceBlock,
+          matching: find.text('原文：“${chapter.body}”'),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(find.text('重逢 · 第 2 版'), findsNothing);
+    await tester.ensureVisible(find.text('查看修改与上下文'));
+    await tester.tap(find.text('查看修改与上下文'));
+    await tester.pumpAndSettle();
+    expect(find.text('正文版本：第 1 章 · 重逢 · 第 2 版'), findsOneWidget);
+    expect(find.text('正文版本：第 2 章 · 重逢 · 第 2 版'), findsOneWidget);
+    expect(gateway.commands, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('选段改稿先显示提案，拒绝后原文保持不变', (tester) async {
     final gateway = FakeGateway();
     await mount(tester, gateway);
@@ -732,6 +931,15 @@ class FakeGateway implements NovelGateway {
               )
             else
               c,
+        ],
+      );
+    } else if (command.operation == 'restoreVersion') {
+      workspace = workspace.replace(
+        chapters: [
+          for (final c in workspace.chapters)
+            c.id == payload['chapterId']
+                ? c.replace(head: payload['versionId'])
+                : c,
         ],
       );
     } else if (command.operation == 'proposeEdit') {

@@ -413,7 +413,11 @@ class _ChapterEditorState extends State<ChapterEditor> {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(dirty ? '有未保存草稿' : '已保存 · $_head'),
+            Text(
+              dirty
+                  ? '有未保存草稿'
+                  : '已保存 · ${_versionLabel(widget.chapter, _head)}',
+            ),
             FilledButton.tonalIcon(
               onPressed:
                   enabled && dirty && !conflict && _body.text.trim().isNotEmpty
@@ -445,11 +449,16 @@ class _ChapterEditorState extends State<ChapterEditor> {
                 {'chapterId': widget.chapter.id, 'versionId': versionId},
               ),
               itemBuilder: (_) => [
-                for (final version in widget.chapter.versions.reversed)
+                for (final (index, version)
+                    in widget.chapter.versions.indexed.toList().reversed)
                   PopupMenuItem(
                     value: version.id,
                     enabled: version.id != widget.chapter.head,
-                    child: Text('恢复 ${version.id}'),
+                    child: Text(
+                      version.id == widget.chapter.head
+                          ? '第 ${index + 1} 版（当前）'
+                          : '恢复第 ${index + 1} 版',
+                    ),
                   ),
               ],
               child: const Padding(
@@ -663,7 +672,11 @@ class WorkspaceInspector extends StatelessWidget {
                 children: [
                   Text(fact.text),
                   Text(
-                    '${fact.chapterId} / ${fact.versionId}',
+                    _chapterVersionLabel(
+                      workspace,
+                      fact.chapterId,
+                      fact.versionId,
+                    ),
                     style: Theme.of(context).textTheme.labelSmall,
                   ),
                   Text(
@@ -730,7 +743,11 @@ class WorkspaceInspector extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text('作者要求：${proposal.context['authorInstruction']}'),
-                Text('正文版本：${proposal.baseHeads}'),
+                if (proposal.baseHeads.isEmpty) const Text('正文版本：无已有章节'),
+                for (final entry in proposal.baseHeads.entries)
+                  Text(
+                    '正文版本：${_chapterVersionLabel(workspace, entry.key, entry.value)}',
+                  ),
                 Text(
                   '记忆：${(proposal.context['memory'] as Json?)?['id'] ?? '未使用可用记忆'}',
                 ),
@@ -752,6 +769,24 @@ class WorkspaceInspector extends StatelessWidget {
       ),
     );
   }
+}
+
+String _versionLabel(Chapter chapter, String versionId) {
+  final index = chapter.versions.indexWhere((v) => v.id == versionId);
+  return index < 0 ? '版本不可用' : '第 ${index + 1} 版';
+}
+
+String _chapterVersionLabel(
+  Workspace workspace,
+  String chapterId,
+  String versionId,
+) {
+  final chapter = workspace.chapters
+      .where((c) => c.id == chapterId)
+      .firstOrNull;
+  return chapter == null
+      ? '章节不可用'
+      : '第 ${chapter.number} 章 · ${chapter.title} · ${_versionLabel(chapter, versionId)}';
 }
 
 String _kind(String kind) => switch (kind) {
