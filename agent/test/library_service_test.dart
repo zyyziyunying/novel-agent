@@ -297,19 +297,18 @@ void main() {
     expect((await service.snapshot())['modelAvailable'], isTrue);
   });
 
-  test('未实现的采用或正文操作明确拒绝且不新增回执', () async {
+  test('作品可关联空知识库而不采用资料，关联操作保存目标回执', () async {
     await seed();
-    await expectLater(
-      service.execute(
-        command('links', 2, 'setKnowledgeLinks', {
-          'links': [],
-        }, target: CommandTarget.work('work-a')),
-      ),
-      throwsA(failure('operation_unavailable')),
+    await service.execute(
+      command('links', 2, 'setKnowledgeLinks', {
+        'links': [LibraryLink(libraryId: 'library-a', versions: {}).toJson()],
+      }, target: CommandTarget.work('work-a')),
     );
+    expect((await repository.load()).work('work-a').adoptedDocuments, isEmpty);
     expect((await repository.load()).receipts.keys, [
       'create-work-a',
       'create-library-a',
+      'links',
     ]);
   });
 

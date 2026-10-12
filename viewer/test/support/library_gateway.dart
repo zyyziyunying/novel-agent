@@ -28,7 +28,12 @@ class FakeLibraryGateway implements LibraryGateway {
   Completer<LibraryResult>? response;
   GatewayFailure? failure;
   bool commitBeforeFailure = false;
-  LibraryResult result() => LibraryResult(workspace, 'fixture/local', true);
+  bool modelAvailable = true;
+  LibraryResult result() => LibraryResult(
+    workspace,
+    modelAvailable ? 'fixture/local' : null,
+    modelAvailable,
+  );
   @override
   Future<LibraryResult> load() async => result();
   @override
@@ -40,6 +45,7 @@ class FakeLibraryGateway implements LibraryGateway {
         throw const GatewayFailure('版本冲突');
       }
       var works = workspace.works;
+      var libraries = workspace.libraries;
       if (command.operation == 'createWork') {
         works = [
           ...works,
@@ -52,6 +58,50 @@ class FakeLibraryGateway implements LibraryGateway {
             memories: [],
             discussions: [],
           ),
+        ];
+      } else if (command.operation == 'createLibrary') {
+        libraries = [
+          ...libraries,
+          KnowledgeLibrary(
+            id: command.payload['id'],
+            name: command.payload['name'],
+            documents: [],
+          ),
+        ];
+      } else if (command.operation == 'renameLibrary' ||
+          command.operation == 'saveDocument') {
+        final library = workspace.library(command.target.libraryId!);
+        var documents = library.documents;
+        if (command.operation == 'saveDocument') {
+          final document = documents
+              .where((d) => d.id == command.payload['documentId'])
+              .firstOrNull;
+          if (document?.head != command.payload['expectedVersionId']) {
+            throw const GatewayFailure('资料版本冲突');
+          }
+          final version = KnowledgeVersion.fromJson(command.payload['version']);
+          documents = [
+            for (final d in documents)
+              if (d.id != command.payload['documentId']) d,
+            KnowledgeDocument(
+              id: command.payload['documentId'],
+              head: version.id,
+              versions: [...?document?.versions, version],
+            ),
+          ];
+        }
+        libraries = [
+          for (final l in libraries)
+            if (l.id == library.id)
+              KnowledgeLibrary(
+                id: l.id,
+                name: command.operation == 'renameLibrary'
+                    ? command.payload['name']
+                    : l.name,
+                documents: documents,
+              )
+            else
+              l,
         ];
       } else {
         final work = workspace.work(command.target.workId!);
@@ -121,7 +171,11 @@ class FakeLibraryGateway implements LibraryGateway {
           title: command.operation == 'renameWork'
               ? command.payload['title']
               : work.title,
-          knowledgeLinks: work.knowledgeLinks,
+          knowledgeLinks: command.operation == 'setKnowledgeLinks'
+              ? (command.payload['links'] as List)
+                    .map(LibraryLink.fromJson)
+                    .toList()
+              : work.knowledgeLinks,
           chapters: chapters,
           proposals: proposals,
           memories: work.memories,
@@ -132,7 +186,7 @@ class FakeLibraryGateway implements LibraryGateway {
       workspace = LibraryWorkspace(
         revision: workspace.revision + 1,
         works: works,
-        libraries: workspace.libraries,
+        libraries: libraries,
         receipts: {
           ...workspace.receipts,
           command.requestId: BoundReceipt(

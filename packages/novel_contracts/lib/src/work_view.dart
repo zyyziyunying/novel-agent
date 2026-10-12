@@ -8,11 +8,18 @@ import 'workspace.dart';
 extension WorkView on LibraryWorkspace {
   Workspace workView(String workId) {
     final owner = work(workId);
+    // Adoption is a set of version pins. UI ordering must not invalidate a
+    // proposal when all of its source versions are unchanged.
+    final references = [...owner.adoptedDocuments]
+      ..sort((a, b) {
+        final library = a.libraryId.compareTo(b.libraryId);
+        return library != 0 ? library : a.documentId.compareTo(b.documentId);
+      });
     return Workspace(
       revision: revision,
       title: owner.title,
       documents: [
-        for (final ref in owner.adoptedDocuments)
+        for (final ref in references)
           SourceDocument(
             id: jsonEncode([ref.libraryId, ref.documentId]),
             title: documentVersion(ref).title,

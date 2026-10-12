@@ -6,6 +6,7 @@ import 'chapter_dialog.dart';
 import 'library_controller.dart';
 import 'library_gateway.dart';
 import 'library_workbench.dart';
+import 'knowledge_details.dart';
 
 class NovelApp extends StatefulWidget {
   const NovelApp({super.key});
@@ -818,8 +819,20 @@ class WorkspaceInspector extends StatelessWidget {
                 Text(
                   '记忆：${(proposal.context['memory'] as Json?)?['id'] ?? '未使用可用记忆'}',
                 ),
-                for (final d in (proposal.context['documents'] as List))
-                  Text('资料：${d['title']}（${_kind(d['kind'])}）\n${d['body']}'),
+                if (proposal.context['knowledgeDocuments']
+                    case final List manifest)
+                  for (final d in manifest) ...[
+                    SelectableText(
+                      '知识库：${d['libraryName']}（${d['libraryId']}）\n资料 ID：${d['documentId']} · 采用版本：${d['versionId']}',
+                    ),
+                    KnowledgeDetails(
+                      version: KnowledgeVersion.fromJson(d['version']),
+                    ),
+                    const SizedBox(height: 12),
+                  ]
+                else
+                  for (final d in (proposal.context['documents'] as List))
+                    Text('资料：${d['title']}（${_kind(d['kind'])}）\n${d['body']}'),
                 if (proposal.context['selection'] != null)
                   Text('选段：${proposal.context['selection']['text']}'),
                 Text('模型 usage：${proposal.usage}'),

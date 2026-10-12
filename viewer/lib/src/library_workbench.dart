@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'library_controller.dart';
+import 'knowledge_panel.dart';
 import 'workbench.dart';
 
 class LibraryWorkbench extends StatelessWidget {
@@ -15,6 +16,16 @@ class LibraryWorkbench extends StatelessWidget {
         appBar: AppBar(
           title: const Text('小说工作台'),
           actions: [
+            IconButton(
+              tooltip: controller.showingKnowledge ? '返回正文' : '管理知识库',
+              onPressed: () =>
+                  controller.showKnowledge(!controller.showingKnowledge),
+              icon: Icon(
+                controller.showingKnowledge
+                    ? Icons.edit_note
+                    : Icons.library_books,
+              ),
+            ),
             if (controller.provider != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -86,7 +97,7 @@ class LibraryWorkbench extends StatelessWidget {
               if (!controller.modelAvailable && workspace != null)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('未配置模型；作品命名、正文保存与历史恢复仍可使用。'),
+                  child: Text('未配置模型；正文保存、知识库管理与资料采用仍可使用。'),
                 ),
               if (controller.error != null)
                 Padding(
@@ -97,7 +108,7 @@ class LibraryWorkbench extends StatelessWidget {
                 Wrap(
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    const Text('作品操作的结果尚未确认。'),
+                    const Text('目录或资料操作的结果尚未确认。'),
                     TextButton(
                       onPressed: controller.busy ? null : controller.retry,
                       child: const Text('重试作品操作'),
@@ -127,26 +138,34 @@ class LibraryWorkbench extends StatelessWidget {
                           child: const Text('连接 Agent'),
                         ),
                       )
-                    : workspace.works.isEmpty
-                    ? Center(
-                        child: FilledButton(
-                          onPressed: controller.canChangeCatalog
-                              ? () => _name(context, null)
-                              : null,
-                          child: const Text('创建第一部作品'),
-                        ),
-                      )
                     : IndexedStack(
-                        index: workspace.works.indexWhere(
-                          (w) => w.id == controller.selectedId,
-                        ),
+                        index: controller.showingKnowledge ? 1 : 0,
                         children: [
-                          for (final work in workspace.works)
-                            NovelWorkbench(
-                              key: ValueKey(work.id),
-                              controller: controller.controllerFor(work.id),
-                              embedded: true,
-                            ),
+                          workspace.works.isEmpty
+                              ? Center(
+                                  child: FilledButton(
+                                    onPressed: controller.canChangeCatalog
+                                        ? () => _name(context, null)
+                                        : null,
+                                    child: const Text('创建第一部作品'),
+                                  ),
+                                )
+                              : IndexedStack(
+                                  index: workspace.works.indexWhere(
+                                    (w) => w.id == controller.selectedId,
+                                  ),
+                                  children: [
+                                    for (final work in workspace.works)
+                                      NovelWorkbench(
+                                        key: ValueKey(work.id),
+                                        controller: controller.controllerFor(
+                                          work.id,
+                                        ),
+                                        embedded: true,
+                                      ),
+                                  ],
+                                ),
+                          KnowledgePanel(controller: controller),
                         ],
                       ),
               ),

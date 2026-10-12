@@ -151,6 +151,14 @@ class LibraryService {
       contextMetadata: {
         'workId': owner.id,
         'basis': base.captureBasis(owner.id).toJson(),
+        'knowledgeDocuments': [
+          for (final ref in owner.adoptedDocuments)
+            {
+              ...ref.toJson(),
+              'libraryName': base.library(ref.libraryId).name,
+              'version': base.documentVersion(ref).toJson(),
+            },
+        ],
       },
     );
     try {
@@ -255,11 +263,16 @@ class LibraryService {
           ),
         ];
       case 'renameWork':
+      case 'setKnowledgeLinks':
         final owner = base.work(command.target.workId!);
         final renamed = NovelWork(
           id: owner.id,
-          title: payload['title'],
-          knowledgeLinks: owner.knowledgeLinks,
+          title: command.operation == 'renameWork'
+              ? payload['title']
+              : owner.title,
+          knowledgeLinks: command.operation == 'setKnowledgeLinks'
+              ? (payload['links'] as List).map(LibraryLink.fromJson).toList()
+              : owner.knowledgeLinks,
           chapters: owner.chapters,
           proposals: owner.proposals,
           memories: owner.memories,
