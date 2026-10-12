@@ -23,7 +23,7 @@ void main() {
     ))!;
     final entry = File.fromUri(
       library,
-    ).parent.parent.uri.resolve('bin/novel_agent.dart');
+    ).parent.parent.uri.resolve('bin/prototype_agent.dart');
     final environment = {...Platform.environment}
       ..remove('DEEPSEEK_API_KEY')
       ..remove('GENKIT_TELEMETRY_SERVER')

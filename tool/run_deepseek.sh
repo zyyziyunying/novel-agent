@@ -17,4 +17,4 @@ fi
 
 export DEEPSEEK_API_KEY
 export NOVEL_DATA_DIR="${NOVEL_DATA_DIR:-.local/deepseek-data}"
-exec dart run agent/bin/novel_agent.dart
+exec dart run agent/bin/prototype_agent.dart

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M2 基础资料服务</title>
+  <link rel="stylesheet" href="../_shared/goal.css">
+</head>
+<body>
+  <main>
+    <h1>M2 基础资料服务</h1>
+    <p class="goal-line"><strong>一句话目标：</strong>实现 M2 新格式持久化、事务去重、基础资料操作与无模型启动，并完成行为验证及独立复审</p>
+
+    <div class="meta" aria-label="Goal metadata">
+      <div><span class="label">状态</span>done</div>
+      <div><span class="label">创建日期</span>2026-10-12</div>
+    </div>
+
+    <section>
+      <h2>当前状态</h2>
+      <p>M2 完成：新格式持久化、事务去重、基础资料操作和无模型启动已有行为证据，独立复审未发现需修正的问题。原有工作台改动保留，软件版本仍为 0.1.0。暂无阻塞；下一阶段为 SPEC 中的 M3。</p>
+    </section>
+
+    <section>
+      <h2>事实源与关联文档</h2>
+      <ul>
+        <li><a href="../../SPEC.md#020-推进计划">SPEC M2</a>：范围、阶段和验收标准。</li>
+        <li><a href="../../docs/architecture.md">架构说明</a>：持久化、事务、协议和启动边界。</li>
+        <li><a href="../../README.md">README</a>：运行和验证入口。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>完成条件</h2>
+      <p>无模型服务完成创建目标、保存资料、重启读取与原请求重试；旧修订和旧资料版本拒绝覆盖；写入失败保留已提交快照及一致回执；损坏或未知格式拒绝加载；鉴权边界通过行为测试。验证按 L2 状态/API 风险执行，并对本地鉴权做回归，最后完成独立复审。模型写作、UI 接入与旧数据迁移不在本目标内。</p>
+    </section>
+
+    <section>
+      <h2>验证结论</h2>
+      <p>2026-10-12：完整 Agent／契约回归 157 项通过，其中新增 M2 测试 31 项；分析、版本检查、格式和本地链接检查通过。全新上下文的只读复审核对代码、测试、复杂度和文档，并独立运行 32 项相关测试及最终退出清理测试，均通过。工作台两个预存改动文件的 SHA-256 与开始时一致。</p>
+      <p>中断证据包括未提交临时文件、真实写入失败和已提交后强制重启；没有执行提交中途实际杀进程或断电试验。格式 2 的模型写作、讨论与 UI 留在后续阶段，本次没有真实 DeepSeek 调用。</p>
+    </section>
+
+  </main>
+</body>
+</html>

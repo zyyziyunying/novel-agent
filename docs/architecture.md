@@ -1,6 +1,6 @@
-# 本地原型架构
+# 项目架构
 
-更新日期：2026-10-12。产品范围与行为要求由 [SPEC.md](../SPEC.md) 维护；前文记录当前 0.1.0 运行边界，末节记录已实现的 0.2.0 M1 契约及待接入的服务规则。软件版本与发布规则见 [版本管理](versioning.md)，其版本号独立于下文的数据格式与正文版本。参考本机 `harrypet_flutter/labs/story-pet-agent` 的包分工，未修改该项目或复制其宠物／世界模板业务。
+更新日期：2026-10-12。产品范围与行为要求由 [SPEC.md](../SPEC.md) 维护；前文记录 `prototype_agent.dart` 的 0.1.0 运行边界，后文记录 0.2.0 M1 契约、M2 资料服务及后续规则。软件版本与发布规则见 [版本管理](versioning.md)，其版本号独立于下文的数据格式与正文版本。参考本机 `harrypet_flutter/labs/story-pet-agent` 的包分工，未修改该项目或复制其宠物／世界模板业务。
 
 ## 包与权威状态
 
@@ -66,7 +66,7 @@ DeepSeek 使用 JSON object 模式，schema 通过插件写入提示词，仍需
 
 ## 0.2.0 M1：多作品与知识契约
 
-状态：共享包已实现以下格式 2 的模型、严格解析、关联校验和请求规范化，入口为 [library.dart](../packages/novel_contracts/lib/src/library.dart)。当前 Agent 与工作台仍使用前文的格式 1。以下新格式持久化、事务、启动和外部入口规则已确定，按 M2–M6 接入；契约测试不能证明这些服务行为已经实现。
+状态：共享包已实现以下格式 2 的模型、严格解析、关联校验和请求规范化，入口为 [library.dart](../packages/novel_contracts/lib/src/library.dart)。默认 Agent 的 M2 资料服务使用格式 2；当前工作台通过独立原型入口使用前文格式 1。正文、资料采用及讨论服务按 M3–M6 接入；下文明确区分已实现的 M2 与后续规则。
 
 ### 数据归属与版本采用
 
@@ -119,20 +119,38 @@ M2 起的服务提交顺序固定为：
 
 `BoundReceipt` 保存实际目标；请求重试、失败和迟到响应都绑定原目标。讨论轮次的用户消息和 pending 状态先作为一个提交保存；模型完成或失败另行提交该轮次的结果。收到相同请求回执时先定位原轮次：completed 复用，pending 在确认无在途调用后继续原上下文，failed 的显式重试也复用原消息与上下文。完成提交前再核对来源与当次快照修订；失败状态不得将回复应用到正文。进程重启后的 pending 标为 interrupted，并等待显式重试；M5 负责实现这些状态转移与防止重复回复，M1 只提供对应记录结构。
 
-### M2 新格式持久化与启动决策
+### M2 新格式持久化与启动
 
-依照 SPEC 的未正式使用前提，0.2.0 从新工作区开始，不迁移格式 1 数据、不保留旧请求回执或设置旧 ID 兼容例外。M2 使用数据目录下的 `library-workspace.json` 存储格式 2，首次启动从 revision 0、空作品、空知识库与空回执初始化，不读取原型的 `workspace.json`。软件 VERSION 暂保持当前基线。
+已实现：[FileLibraryRepository](../agent/lib/src/library_repository.dart)、[LibraryService](../agent/lib/src/library_service.dart)、[LibraryRuntime](../agent/lib/src/library_runtime.dart) 由默认 [novel_agent.dart](../agent/bin/novel_agent.dart) 启动。依照 SPEC 的未正式使用前提，从新工作区开始，不迁移格式 1 数据、不保留旧请求回执或设置旧 ID 兼容例外。数据目录下的 `library-workspace.json` 存储格式 2，首次启动从 revision 0、空作品、空知识库与空回执初始化，不读取原型的 `workspace.json`。软件 VERSION 暂保持当前基线。
 
 - 启动先锁住数据目录；已有新快照必须完整校验，损坏、旧格式和未知格式明确拒绝，不能用空数据静默覆盖。
-- 按前述事务边界构造完整快照，校验后 flush 临时文件并 rename；失败保留已提交快照。重启读取内容与回执，去重只按新协议规则执行。
-- 资料服务启动不以模型密钥为前提。无密钥时开放知识读写并显式报告模型不可用；真实模型和 fixture 均单独启用。M2 保留当前回环地址、会话令牌、来源校验和关闭调试反射服务的边界。
+- 基础操作在同一服务队列内读取、先查回执、检查全局 revision 与资料 head、构造完整快照，校验后 flush 临时文件并 rename；失败保留已提交快照。回执与资料一起提交，不另存索引。重启忽略未提交 `.tmp`，读取已提交内容和回执；同内容重试返回当前快照及 `reused: true`。没有模型调用，无需单独维护在途请求表。仓库的修订检查是单服务、目录独占前提下的保护，不是跨进程数据库 CAS；不承诺断电耐久性。
+- 资料服务启动不以模型密钥为前提，无密钥也开放读写。真实模型仅在环境中有密钥时配置，fixture 仅由 `--fixture` 配置；未配置模型的生成请求报告 `model_unavailable`。M2 尚未实现格式 2 的正文／讨论模型流程，有配置时返回 `operation_unavailable`，不调用模型、不写失败回执。资料保存始终不调用模型。
+- 默认入口与独立 [prototype_agent.dart](../agent/bin/prototype_agent.dart) 共享 [本地 HTTP 鉴权边界](../agent/lib/src/local_http.dart)：回环绑定、每次启动随机会话令牌、精确 Origin 与关闭 Genkit 反射服务。独立原型只用于当前界面，不在格式 2 服务注册旧路由，不做协议适配。
+
+已开放的 M2 操作：
+
+| operation | target | 行为 |
+| --- | --- | --- |
+| `createWork` / `createLibrary` | `catalog` | 客户端提供未使用 ID 与标题／名称，创建空目标 |
+| `renameWork` | `work` | 仅更改指定作品名称，保留其余状态 |
+| `renameLibrary` | `library`，workId 为 null | 仅更改指定知识库名称 |
+| `saveDocument` | `library`，workId 显式可空 | 新增传 expectedVersionId 为 null；更新匹配 head 并使用新版本 ID，追加完整版本，保留历史与结构化来源 |
+
+资料的 associatedWorkId 必须与请求 target.workId 相同且关联作品存在；关联只表达来源归属，不更新作品采用映射。讨论来源须能在快照中定位；创建讨论和主动采用成果尚待 M5。对象 ID 冲突、缺失目标、非法引用或版本冲突均不提交，回执检查仍优先于这些前置条件。
+
+`GET /libraryWorkspace` 直接返回 `{workspace, provider, modelAvailable, reused}`；`POST /libraryAction` 输入 `{data: LibraryCommand}`，成功输出 `{result: 同一结果结构}`。provider 未配置时为 null；modelAvailable 只表明已配置模型，不表示后续模型流程已经开放。HTTP 操作错误沿用 Genkit 1.0.0 的 `{code, status, message}`：输入无效与前置条件为 400，冲突为 409，无法确认存储结果为 500；服务错误码属于 Dart 边界，SDK 不把 exception.details 输出为 HTTP 字段。鉴权与路由错误沿用本地 `{error: {message}}`。结果不确定时保留原请求重试。
 
 ### 外部入口与文件导入决策
 
-M2–M6 首轮沿用本地鉴权 HTTP，读取入口为 `GET /libraryWorkspace`，操作入口为 `POST /libraryAction`，继续使用 `{data: ...}`／`{result: ...}` 包装并携带新协议目标。CLI、MCP 作为后续适配，不是 0.2.0 的前提。当前 Agent 尚未注册这两个入口；现有 `/workspace`、`/novelAction` 仍按格式 1 运行。
+M2 已注册上述本地鉴权 HTTP 入口；M6 的导入与工具调用复用此入口及资料事务。CLI、MCP 作为后续适配，不是 0.2.0 的前提。原型入口的 `/workspace`、`/novelAction` 仍按格式 1 运行。
 
 M6 首轮导入 `.txt` 和 `.md`，每文件上限 1 MiB，严格 UTF-8 解码，失败不保存。Markdown 保留原文；导入流程不执行指令、不自动抓取链接或调用模型。由工作台／外部客户端读取文件并提交资料内容和文件来源，服务不按客户端传入的路径读取本机文件。文件导入和外部新增都经过同一资料操作和去重规则，更新显式提供预期旧版本；相同内容是否另存一份由作者决定，不做隐式内容合并。
 
 ### M1 验证依据
 
-[library_test.dart](../packages/novel_contracts/test/library_test.dart) 验证空工作区冷加载，并以两部作品、两个知识库、独立正文、共享资料的不同采用版本和三种讨论状态验证关联、历史来源、作者事实边界及非法数据拒绝；[library_command_test.dart](../packages/novel_contracts/test/library_command_test.dart) 验证目标、版本前置条件、采用身份和规范化指纹。格式 2 拒绝旧格式与兼容字段，现有 Agent 仍以格式 1 回归。运行根目录 `dart analyze` 和 `dart test agent/test packages/novel_contracts/test`；这些结果属于本项目工程验证，不代表新格式持久化、HTTP 新入口或真实模型讨论已经通过。
+[library_test.dart](../packages/novel_contracts/test/library_test.dart) 验证空工作区冷加载，并以两部作品、两个知识库、独立正文、共享资料的不同采用版本和三种讨论状态验证关联、历史来源、作者事实边界及非法数据拒绝；[library_command_test.dart](../packages/novel_contracts/test/library_command_test.dart) 验证目标、版本前置条件、采用身份和规范化指纹。格式 2 拒绝旧格式与兼容字段；原型 Agent 的格式 1 另行回归。
+
+### M2 验证依据
+
+[library_service_test.dart](../agent/test/library_service_test.dart) 验证目标隔离、历史追加、来源保留、去重优先级、并发冲突和模型解耦；[library_repository_test.dart](../agent/test/library_repository_test.dart) 验证空初始化、冷启动、旧／损坏格式拒绝、临时写入失败和未提交临时快照；[library_server_test.dart](../agent/test/library_server_test.dart) 启动真实本机进程，验证无密钥鉴权 HTTP、强制重启去重、单写锁、存储失败恢复和关闭调试反射。完整命令见 [README 验证](../README.md#验证)。这些是工程与本地进程证据，不包含断电测试、格式 2 模型写作、UI 接入或真实 DeepSeek 质量验证。
