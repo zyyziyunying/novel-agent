@@ -35,6 +35,8 @@ flutter run -d web-server --web-hostname localhost --web-port 4300
 
 打开 `http://localhost:4300`，填写 Agent 启动时显示的**工作台会话令牌**。Agent 地址默认 `http://127.0.0.1:4100`。令牌只保存在页面内存中，刷新页面后重新填写。
 
+首次连接失败时可直接修改地址或令牌再试。Agent 重启导致令牌失效时，点击工作台顶部“连接设置”，填写当前 Agent 的新令牌；重连保留页面内正文、讨论和资料编辑草稿及待确认请求，无需刷新页面。资料保存失败时，错误提示固定显示在弹窗底部，也可从该处打开连接设置。
+
 默认读取 `.local/workbench-web-data/library-workspace.json`；可用 `NOVEL_DATA_DIR` 指定其他数据目录。目录中尚无该文件时创建空工作区，在界面创建并命名作品，再通过“新建章节”开始手写，或让模型起草第一章。新服务不读取或迁移旧 `workspace.json`。已有格式 2 数据重启后继续读取；损坏、旧格式或未知格式会拒绝启动，不会静默重置。
 
 真实 DeepSeek 模式：在终端一设置 `DEEPSEEK_API_KEY`，然后运行默认入口。默认模型为 `deepseek-flash`，通过 `DEEPSEEK_MODEL` 切换。供应商密钥仅在 Agent 中读取；本地配置放在 `.local/`。示例字段见 [.env.example](.env.example)，程序读取进程环境，不会自动加载该文件。
