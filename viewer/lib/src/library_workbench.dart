@@ -240,6 +240,7 @@ class _WorkNameDialogState extends State<_WorkNameDialog> {
       setState(() => _validation = '作品名称不能为空。');
       return;
     }
+    FocusScope.of(context).unfocus();
     final saved = widget.workId == null
         ? await controller.createWork(_id, _title.text)
         : await controller.renameWork(_id, _title.text);
@@ -253,6 +254,7 @@ class _WorkNameDialogState extends State<_WorkNameDialog> {
   }
 
   Future<void> _resolve({required bool retry}) async {
+    FocusScope.of(context).unfocus();
     if (retry) {
       await controller.retry();
     } else {

@@ -115,6 +115,8 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
       setState(() => validation = '请保留至少一个有效来源；网页需填写完整 HTTP(S) 地址。');
       return;
     }
+    FocusScope.of(context).unfocus();
+    setState(() => validation = null);
     final saved = await controller.saveKnowledgeDocument(
       libraryId: widget.library.id,
       documentId: documentId,
@@ -130,6 +132,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
   }
 
   Future<void> resolve(bool retry) async {
+    FocusScope.of(context).unfocus();
     if (retry) {
       await controller.retry();
     } else {
@@ -207,6 +210,9 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                       const SizedBox(height: 16),
                     ],
                     TextField(
+                      // A nested dialog can detach the Web DOM editor. Recreate
+                      // it when readOnly changes; controllers retain the draft.
+                      key: ValueKey(('title', editable)),
                       controller: title,
                       readOnly: !editable,
                       decoration: const InputDecoration(labelText: '资料标题'),
@@ -230,6 +236,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                     ),
                     const SizedBox(height: 16),
                     TextField(
+                      key: ValueKey(('body', editable)),
                       controller: body,
                       readOnly: !editable,
                       minLines: 6,
@@ -314,6 +321,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                             ),
                             const SizedBox(height: 8),
                             TextField(
+                              key: ValueKey((source, editable)),
                               controller: source.field,
                               readOnly: !editable,
                               minLines: 2,

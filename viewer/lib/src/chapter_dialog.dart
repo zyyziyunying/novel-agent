@@ -30,6 +30,7 @@ class _CreateChapterDialogState extends State<CreateChapterDialog> {
       setState(() => _validation = '章节标题不能为空。');
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() => _validation = null);
     final saved = await controller.act('createChapter', {
       'chapterId': _chapterId,
@@ -44,6 +45,7 @@ class _CreateChapterDialogState extends State<CreateChapterDialog> {
   }
 
   Future<void> _resolve({required bool retry}) async {
+    FocusScope.of(context).unfocus();
     if (retry) {
       await controller.retry();
     } else {

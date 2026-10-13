@@ -273,6 +273,28 @@ void main() {
     expect(find.text('新版参考'), findsNothing);
   });
 
+  testWidgets('提交名称前释放编辑焦点，等待保存期间名称不可改写', (tester) async {
+    final gateway = seeded()..response = Completer<LibraryResult>();
+    await mount(tester, gateway);
+    await tester.tap(find.byTooltip('重命名知识库'));
+    await tester.pumpAndSettle();
+    final name = field('知识库名称');
+    await tester.enterText(name, '改名后的知识库');
+    final editable = find.descendant(
+      of: name,
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
+    await tester.tap(find.text('保存知识库名称'));
+    await tester.pump();
+    expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isFalse);
+    expect(tester.widget<TextField>(name).readOnly, isTrue);
+    gateway.response!.complete(gateway.result());
+    await tester.pumpAndSettle();
+    expect(find.text('改名后的知识库'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('编辑资料追加版本和来源，作品采用与正文记忆不自动改变', (tester) async {
     final gateway = seeded(adopted: true);
     await mount(tester, gateway);

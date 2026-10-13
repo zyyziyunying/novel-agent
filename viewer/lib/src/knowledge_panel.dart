@@ -368,6 +368,7 @@ class _LibraryNameState extends State<_LibraryName> {
       setState(() => validation = '知识库名称不能为空。');
       return;
     }
+    FocusScope.of(context).unfocus();
     final saved = widget.library == null
         ? await widget.controller.createLibrary(id, field.text)
         : await widget.controller.renameLibrary(id, field.text);
@@ -381,6 +382,7 @@ class _LibraryNameState extends State<_LibraryName> {
   }
 
   Future<void> resolve(bool retry) async {
+    FocusScope.of(context).unfocus();
     final controller = widget.controller;
     if (retry) {
       await controller.retry();
