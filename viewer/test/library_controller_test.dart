@@ -9,6 +9,64 @@ import 'package:novel_workbench/src/library_gateway.dart';
 import 'support/library_gateway.dart';
 
 void main() {
+  test('更新连接保留未确认的原请求，并使用新会话重试', () async {
+    final original = FakeLibraryGateway()
+      ..failure = const GatewayFailure('结果未知', uncertain: true);
+    final controller = LibraryController(original);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final work = controller.controllerFor('work-a');
+    await work.act('saveChapter', {'chapterId': 'chapter-1', 'body': '待确认正文'});
+    final pending = work.pending!;
+    final renewed = FakeLibraryGateway()..workspace = original.workspace;
+    expect(await controller.reconnect(renewed), isTrue);
+    expect(controller.controllerFor('work-a'), same(work));
+    expect(work.pending, same(pending));
+    expect(await work.retry(), isTrue);
+    expect(renewed.commands.single.toJson(), original.commands.single.toJson());
+    expect(work.pending, isNull);
+    expect(work.workspace!.chapters.first.body, '待确认正文');
+  });
+
+  test('更新会话读到已提交回执后解除未知状态，不重复保存', () async {
+    final original = FakeLibraryGateway()
+      ..commitBeforeFailure = true
+      ..failure = const GatewayFailure('响应丢失', uncertain: true);
+    final controller = LibraryController(original);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final work = controller.controllerFor('work-a');
+    await work.act('saveChapter', {'chapterId': 'chapter-1', 'body': '已提交正文'});
+    expect(work.pending, isNotNull);
+    final renewed = FakeLibraryGateway()..workspace = original.workspace;
+    expect(await controller.reconnect(renewed), isTrue);
+    expect(work.pending, isNull);
+    expect(work.chapterSave('chapter-1')!.body, '已提交正文');
+    expect(renewed.commands, isEmpty);
+  });
+
+  test('在途保存期间不能更换会话，较旧快照也不能替换当前连接', () async {
+    final original = FakeLibraryGateway()
+      ..response = Completer<LibraryResult>();
+    final controller = LibraryController(original);
+    addTearDown(controller.dispose);
+    await controller.load();
+    final stale = FakeLibraryGateway();
+    final saving = controller.controllerFor('work-a').act('saveChapter', {
+      'chapterId': 'chapter-1',
+      'body': '新版本',
+    });
+    expect(controller.canReconnect, isFalse);
+    expect(await controller.reconnect(stale), isFalse);
+    expect(controller.gateway, same(original));
+    original.response!.complete(original.result());
+    await saving;
+    expect(controller.canReconnect, isTrue);
+    expect(await controller.reconnect(FakeLibraryGateway()), isFalse);
+    expect(controller.gateway, same(original));
+    expect(controller.workspace!.revision, 1);
+  });
+
   test('中央刷新已确认 A 回执后，迟到网络失败仍视为成功并允许 B 写入', () async {
     final delayed = Completer<LibraryResult>();
     final gateway = FakeLibraryGateway()..response = delayed;

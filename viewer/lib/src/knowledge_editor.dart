@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
+import 'connection_settings.dart';
 import 'knowledge_details.dart';
 import 'library_controller.dart';
 
@@ -163,6 +164,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
     listenable: controller,
     builder: (context, _) {
       final editable = !controller.busy && requestId == null;
+      final connection = AgentConnectionSettings.maybeOf(context);
       final messages = [
         ?(validation ?? controller.error),
         if (requestId != null) '结果尚未确认，资料编辑已保留。请刷新或用原请求重试。',
@@ -382,6 +384,13 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
+                    if (controller.error != null && connection != null)
+                      TextButton(
+                        onPressed: connection.canOpen
+                            ? () => connection.open(context)
+                            : null,
+                        child: const Text('连接设置'),
+                      ),
                     TextButton(
                       onPressed: controller.busy
                           ? null

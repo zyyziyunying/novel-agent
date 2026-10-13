@@ -9,8 +9,10 @@ part 'discussion_controller.dart';
 
 /// Owns the catalog; each work owns a separate editor and request controller.
 class LibraryController extends ChangeNotifier {
-  LibraryController(this.gateway);
-  final LibraryGateway gateway;
+  LibraryController(LibraryGateway gateway) : _gateway = gateway;
+  LibraryGateway _gateway;
+  LibraryGateway get gateway => _gateway;
+  bool _reconnecting = false;
   LibraryWorkspace? workspace;
   String? selectedId;
   String? selectedLibraryId;
@@ -34,6 +36,11 @@ class LibraryController extends ChangeNotifier {
       _controllers.values.any((c) => c.pending != null) ||
       discussionRequests.values.any((s) => s.pending != null);
   bool get canChangeCatalog => !busy && !hasPending;
+  bool get canReconnect =>
+      !_disposed &&
+      !busy &&
+      !_controllers.values.any((c) => c.busy) &&
+      !discussionRequests.values.any((s) => s.busy);
   String newWorkId() => 'work-$_session-${++_sequence}';
   String newKnowledgeId(String kind) => '$kind-$_session-${++_sequence}';
 
@@ -74,6 +81,41 @@ class LibraryController extends ChangeNotifier {
       pending = null;
     }
   });
+
+  /// Verify the new session before replacing transport. Editor state and
+  /// uncertain requests stay on this controller and can reuse saved receipts.
+  Future<bool> reconnect(LibraryGateway candidate) async {
+    if (!canReconnect) {
+      candidate.close();
+      return false;
+    }
+    var installed = false;
+    _reconnecting = true;
+    try {
+      await _run(() async {
+        final result = await candidate.load();
+        if (_disposed) return;
+        if (workspace != null &&
+            result.workspace.revision < workspace!.revision) {
+          throw const GatewayFailure('Agent 数据早于当前工作台，连接未更换。');
+        }
+        final previous = _gateway;
+        _gateway = candidate;
+        installed = true;
+        _apply(result);
+        if (pending != null &&
+            workspace!.receipts.containsKey(pending!.requestId)) {
+          pending = null;
+        }
+        previous.close();
+      });
+      return installed;
+    } finally {
+      _reconnecting = false;
+      if (!installed) candidate.close();
+    }
+  }
+
   Future<bool> createWork(String id, String title) => _catalog(
     'createWork',
     CommandTarget.catalog(),
@@ -237,6 +279,9 @@ class _WorkGateway implements NovelGateway {
 
   @override
   Future<WorkspaceResult> execute(NovelCommand command) async {
+    if (catalog._reconnecting) {
+      throw const GatewayFailure('正在更新连接，请完成后再保存。');
+    }
     if (catalog.hasPending &&
         catalog.controllerFor(workId).pending?.requestId != command.requestId) {
       throw const GatewayFailure('其他操作的结果尚未确认，请先刷新或重试。');

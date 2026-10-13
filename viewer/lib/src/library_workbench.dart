@@ -4,6 +4,7 @@ import 'library_controller.dart';
 import 'knowledge_panel.dart';
 import 'workbench.dart';
 import 'discussion_panel.dart';
+import 'connection_settings.dart';
 
 class LibraryWorkbench extends StatelessWidget {
   const LibraryWorkbench({super.key, required this.controller});
@@ -13,10 +14,19 @@ class LibraryWorkbench extends StatelessWidget {
     listenable: controller,
     builder: (context, _) {
       final workspace = controller.workspace;
+      final connection = AgentConnectionSettings.maybeOf(context);
       return Scaffold(
         appBar: AppBar(
           title: const Text('小说工作台'),
           actions: [
+            if (connection != null)
+              IconButton(
+                tooltip: '连接设置',
+                onPressed: connection.canOpen
+                    ? () => connection.open(context)
+                    : null,
+                icon: const Icon(Icons.settings_ethernet),
+              ),
             IconButton(
               tooltip: controller.showingDiscussion ? '返回正文' : '持续讨论',
               onPressed: () =>

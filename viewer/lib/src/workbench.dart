@@ -7,9 +7,11 @@ import 'library_controller.dart';
 import 'library_gateway.dart';
 import 'library_workbench.dart';
 import 'knowledge_details.dart';
+import 'connection_settings.dart';
 
 class NovelApp extends StatefulWidget {
-  const NovelApp({super.key});
+  const NovelApp({super.key, this.gatewayFactory});
+  final LibraryGateway Function(Uri endpoint, String token)? gatewayFactory;
   @override
   State<NovelApp> createState() => _NovelAppState();
 }
@@ -26,13 +28,19 @@ class _NovelAppState extends State<NovelApp> {
   );
   LibraryController? _controller;
   String? _error;
+  bool _connecting = false;
   @override
   void initState() {
     super.initState();
     if (_token.text.isNotEmpty) _connect();
   }
 
-  void _connect() {
+  LibraryGateway _gateway(Uri endpoint, String token) =>
+      widget.gatewayFactory?.call(endpoint, token) ??
+      HttpLibraryGateway(endpoint: endpoint, token: token);
+
+  Future<void> _connect() async {
+    if (_connecting) return;
     final endpoint = Uri.tryParse(_endpoint.text.trim());
     if (endpoint == null ||
         !{'http', 'https'}.contains(endpoint.scheme) ||
@@ -41,11 +49,40 @@ class _NovelAppState extends State<NovelApp> {
       setState(() => _error = '请输入本地 Agent 地址及其显示的会话令牌。');
       return;
     }
-    _controller = LibraryController(
-      HttpLibraryGateway(endpoint: endpoint, token: _token.text.trim()),
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+    final candidate = LibraryController(_gateway(endpoint, _token.text.trim()));
+    final connected = await candidate.load();
+    if (!mounted) {
+      candidate.dispose();
+      return;
+    }
+    setState(() {
+      _connecting = false;
+      if (connected) {
+        _controller = candidate;
+        _token.clear();
+      } else {
+        _error = candidate.error;
+        candidate.dispose();
+      }
+    });
+  }
+
+  void _connectionSettings(BuildContext context) {
+    if (!(_controller?.canReconnect ?? false)) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ConnectionSettingsDialog(
+        endpoint: Uri.parse(_endpoint.text.trim()),
+        controller: _controller!,
+        gatewayFactory: _gateway,
+      ),
     );
-    _controller!.load();
-    setState(() {});
   }
 
   @override
@@ -60,6 +97,11 @@ class _NovelAppState extends State<NovelApp> {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Novel Agent Lab',
     debugShowCheckedModeBanner: false,
+    builder: (_, child) => AgentConnectionSettings(
+      controller: _controller,
+      open: _connectionSettings,
+      child: child!,
+    ),
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff335f57)),
@@ -91,6 +133,7 @@ class _NovelAppState extends State<NovelApp> {
                       const SizedBox(height: 24),
                       TextField(
                         controller: _endpoint,
+                        readOnly: _connecting,
                         decoration: const InputDecoration(
                           labelText: 'Agent 地址',
                         ),
@@ -99,6 +142,7 @@ class _NovelAppState extends State<NovelApp> {
                       TextField(
                         controller: _token,
                         obscureText: true,
+                        readOnly: _connecting,
                         decoration: const InputDecoration(
                           labelText: '工作台会话令牌',
                           helperText: '启动 Agent 后在终端查看；此处填写本地会话令牌。',
@@ -107,8 +151,8 @@ class _NovelAppState extends State<NovelApp> {
                       const SizedBox(height: 20),
                       if (_error != null) Text(_error!),
                       FilledButton(
-                        onPressed: _connect,
-                        child: const Text('连接工作台'),
+                        onPressed: _connecting ? null : _connect,
+                        child: Text(_connecting ? '正在连接…' : '连接工作台'),
                       ),
                     ],
                   ),
