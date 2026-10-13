@@ -329,6 +329,33 @@ void main() {
     expect(find.textContaining('有新版可采用'), findsOneWidget);
   });
 
+  for (final size in [const Size(1280, 720), const Size(1024, 640)]) {
+    testWidgets('在 $size 保存失败时无需滚动即可看到原因，草稿保持', (tester) async {
+      final gateway = seeded();
+      await mount(tester, gateway, size: size);
+      await openEditor(tester);
+      await tester.enterText(field('资料正文'), '保存冲突后仍应保留的草稿');
+      gateway.failure = const GatewayFailure('工作区已发生变化，请刷新后重新操作。');
+      await tester.tap(find.text('保存资料版本'));
+      await tester.pumpAndSettle();
+      final error = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('工作区已发生变化，请刷新后重新操作。'),
+      );
+      expect(error.hitTestable(), findsOneWidget);
+      expect(
+        tester.getRect(error).bottom,
+        lessThanOrEqualTo(tester.getRect(find.text('保存资料版本')).top),
+      );
+      expect(
+        tester.widget<TextField>(field('资料正文')).controller!.text,
+        '保存冲突后仍应保留的草稿',
+      );
+      expect(find.text('刷新资料').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('长正文和多行来源在矮窄窗口及键盘下可编辑并保存', (tester) async {
     final gateway = seeded(adopted: true);
     await mount(tester, gateway, size: const Size(600, 640), scale: 1.3);

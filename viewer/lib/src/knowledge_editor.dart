@@ -163,6 +163,11 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
     listenable: controller,
     builder: (context, _) {
       final editable = !controller.busy && requestId == null;
+      final messages = [
+        ?(validation ?? controller.error),
+        if (requestId != null) '结果尚未确认，资料编辑已保留。请刷新或用原请求重试。',
+      ];
+      final message = messages.isEmpty ? null : messages.join('\n');
       return AlertDialog(
         insetPadding: const EdgeInsets.all(20),
         title: Text(widget.document == null ? '新增资料' : '编辑资料'),
@@ -346,10 +351,6 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                           : null,
                       child: const Text('添加来源'),
                     ),
-                    if (validation != null) Text(validation!),
-                    if (controller.error != null) Text(controller.error!),
-                    if (requestId != null)
-                      const Text('结果尚未确认，资料编辑已保留。请刷新或用原请求重试。'),
                   ],
                 ),
               ),
@@ -357,26 +358,61 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: controller.busy ? null : () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          if (controller.error != null || requestId != null)
-            TextButton(
-              onPressed: controller.busy ? null : () => resolve(false),
-              child: const Text('刷新资料'),
+          SizedBox(
+            width: 680,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (message != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: controller.busy
+                          ? null
+                          : () => Navigator.pop(context),
+                      child: const Text('取消'),
+                    ),
+                    if (controller.error != null || requestId != null)
+                      TextButton(
+                        onPressed: controller.busy
+                            ? null
+                            : () => resolve(false),
+                        child: const Text('刷新资料'),
+                      ),
+                    if (requestId != null)
+                      TextButton(
+                        onPressed: controller.busy ? null : () => resolve(true),
+                        child: const Text('重试资料操作'),
+                      ),
+                    FilledButton(
+                      onPressed:
+                          controller.canChangeCatalog &&
+                              requestId == null &&
+                              !stale
+                          ? save
+                          : null,
+                      child: const Text('保存资料版本'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          if (requestId != null)
-            TextButton(
-              onPressed: controller.busy ? null : () => resolve(true),
-              child: const Text('重试资料操作'),
-            ),
-          FilledButton(
-            onPressed:
-                controller.canChangeCatalog && requestId == null && !stale
-                ? save
-                : null,
-            child: const Text('保存资料版本'),
           ),
         ],
       );
