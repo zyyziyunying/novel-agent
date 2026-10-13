@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsRole;
+
 import 'package:flutter/material.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
@@ -347,25 +349,38 @@ class _NovelWorkbenchState extends State<NovelWorkbench> {
                                       icon: const Icon(
                                         Icons.library_books_outlined,
                                       ),
-                                      onPressed: () => showModalBottomSheet(
+                                      onPressed: () => showDialog<void>(
                                         context: context,
-                                        isScrollControlled: true,
-                                        showDragHandle: true,
-                                        builder: (_) => SizedBox(
-                                          height:
-                                              MediaQuery.sizeOf(
-                                                context,
-                                              ).height *
-                                              .85,
-                                          child: ListenableBuilder(
-                                            listenable: controller,
-                                            builder: (_, _) =>
-                                                WorkspaceInspector(
-                                                  controller: controller,
-                                                  showDocuments: true,
-                                                  allowDocumentEditing:
-                                                      !widget.embedded,
-                                                ),
+                                        builder: (_) => Dialog(
+                                          semanticsRole: SemanticsRole.none,
+                                          alignment: Alignment.bottomCenter,
+                                          insetPadding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 640,
+                                          ),
+                                          child: Semantics(
+                                            role: SemanticsRole.dialog,
+                                            scopesRoute: true,
+                                            namesRoute: true,
+                                            label: '知识库与写作助手',
+                                            explicitChildNodes: true,
+                                            child: SizedBox(
+                                              height:
+                                                  MediaQuery.sizeOf(
+                                                    context,
+                                                  ).height *
+                                                  .85,
+                                              child: ListenableBuilder(
+                                                listenable: controller,
+                                                builder: (_, _) =>
+                                                    WorkspaceInspector(
+                                                      controller: controller,
+                                                      showDocuments: true,
+                                                      allowDocumentEditing:
+                                                          !widget.embedded,
+                                                    ),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),

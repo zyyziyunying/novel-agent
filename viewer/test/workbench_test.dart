@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 import 'package:novel_workbench/src/controller.dart';
@@ -385,6 +388,40 @@ void main() {
     expect(find.text('写作助手'), findsOneWidget);
     expect(find.text('起草下一章'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('macOS 紧凑助手提供路由名称，关闭后恢复正文语义', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final semantics = tester.ensureSemantics();
+    try {
+      await mount(tester, FakeGateway(), size: const Size(1024, 640));
+      await tester.tap(find.byTooltip('知识库与写作助手'));
+      await tester.pumpAndSettle();
+      final routes = find.semantics
+          .byFlag(SemanticsFlag.scopesRoute)
+          .evaluate()
+          .where((node) => node.getSemanticsData().flagsCollection.namesRoute);
+      expect(routes.map((node) => node.label), contains('知识库与写作助手'));
+      expect(
+        find.semantics
+            .byLabel('知识库与写作助手')
+            .evaluate()
+            .single
+            .getSemanticsData()
+            .role,
+        SemanticsRole.dialog,
+      );
+      expect(routes.every((node) => node.label.trim().isNotEmpty), isTrue);
+      expect(find.text('写作助手'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('知识库与写作助手'), findsOneWidget);
+      expect(find.byKey(const ValueKey('body-chapter-1')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   test('结果未知时重试复用同一请求，并暂时阻止其他修改', () async {

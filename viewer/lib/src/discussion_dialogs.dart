@@ -112,8 +112,8 @@ class _NewDiscussionDialogState extends State<NewDiscussionDialog> {
                     ? null
                     : (id) => setState(() => _chapterId = id),
               ),
-              if (widget.controller.error != null)
-                Text(widget.controller.error!),
+              if (widget.controller.errorForWork(widget.workId) != null)
+                Text(widget.controller.errorForWork(widget.workId)!),
               if (_requestId != null) const Text('结果待确认，请刷新或重试原请求。'),
             ],
           ),
@@ -126,7 +126,8 @@ class _NewDiscussionDialogState extends State<NewDiscussionDialog> {
               : () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        if (widget.controller.error != null || _requestId != null)
+        if (widget.controller.errorForWork(widget.workId) != null ||
+            _requestId != null)
           TextButton(
             onPressed: widget.controller.busy ? null : () => _resolve(false),
             child: const Text('刷新讨论'),
@@ -391,8 +392,9 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
                   ),
                 ),
                 if (_error != null) Text(_error!),
-                if (widget.controller.error != null)
-                  Text(widget.controller.error!),
+                if (widget.controller.errorForWork(widget.source.workId) !=
+                    null)
+                  Text(widget.controller.errorForWork(widget.source.workId)!),
                 if (_requestId != null) const Text('结果待确认，成果内容已保留。请刷新或重试原请求。'),
               ],
             ),
@@ -405,7 +407,8 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
                 : () => Navigator.pop(context),
             child: const Text('取消'),
           ),
-          if (widget.controller.error != null || _requestId != null)
+          if (widget.controller.errorForWork(widget.source.workId) != null ||
+              _requestId != null)
             TextButton(
               onPressed: widget.controller.busy ? null : () => _resolve(false),
               child: const Text('刷新讨论'),

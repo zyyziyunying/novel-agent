@@ -1,8 +1,8 @@
 # Novel Agent Lab
 
-面向小说作者的知识库与写作工作台。作者主导创作，Agent 辅助续写和改稿。采用 Flutter Web、Dart Agent、Genkit Dart 1.0.0 与 DeepSeek 插件。工作台已接入格式 2 多作品、独立知识库、资料版本采用与持续讨论；[外部工具写入流程](docs/external-write.md) 已完成工程验收，整体验收与发布按 [SPEC](SPEC.md#020-推进计划) 推进。
+面向小说作者的知识库与写作工作台。作者主导创作，Agent 辅助续写和改稿。采用 Flutter Web、Dart Agent、Genkit Dart 1.0.0 与 DeepSeek 插件。工作台已接入格式 2 多作品、独立知识库、资料版本采用与持续讨论；[外部工具写入流程](docs/external-write.md) 与 [M7 整体验收](SPEC.md#m7整体验收与发布) 已完成。
 
-软件版本以 [VERSION](VERSION) 为准，当前登记基线保持 0.1.0；0.2.0 尚未发布。版本规则见 [版本管理](docs/versioning.md)，已实现变更见 [CHANGELOG](CHANGELOG.md)，实现边界见 [架构说明](docs/architecture.md#m5-持续讨论与作者选择采用成果)。
+软件版本以 [VERSION](VERSION) 为准，当前为 0.2.0，已完成本地发布登记，发布提交由本地注释标签 `v0.2.0` 标识。版本规则见 [版本管理](docs/versioning.md)，变更及格式 1 的兼容影响见 [CHANGELOG](CHANGELOG.md)，实现边界见 [架构说明](docs/architecture.md#m7-验收与-020-发布登记2026-10-13)。
 
 ## 本地运行
 
@@ -111,7 +111,7 @@ flutter build web --no-pub
 
 Agent／契约测试覆盖格式 2、持久化、无模型 HTTP、事务去重、多作品正文隔离、记忆与版本冲突，讨论三轮与失败重试、SIGKILL 后恢复及成果采用，以及格式 1 原型回归和 Genkit DeepSeek 模拟 HTTP。外部写入验收直接提交文档 JSON 示例，覆盖工具／原始来源、鉴权、版本冲突、失败恢复与重启复用。工作台测试覆盖单作品编辑行为、多作品切换与草稿、迟到响应、知识库管理、固定版本采用、来源展示、冲突编辑和窄屏交互，以及讨论三轮交互、切换输入、成果采用、待完成回执和迟到响应；外部写入后的刷新组件测试核对原目标、来源、选择与固定采用版本。
 
-历史固定虚构样例的三项 [真实 DeepSeek 接口烟测](docs/research/2026-10-10-deepseek-live-smoke.md) 使用格式 1 原型；M3–M5 新流程由工程测试与演示模型验证，本轮未执行真实接口调用；新讨论真实接口烟测留待 M7 发布验收。中文成稿质量与实际成本仍待正式评测。
+历史固定虚构样例的三项 [真实 DeepSeek 接口烟测](docs/research/2026-10-10-deepseek-live-smoke.md) 使用格式 1 原型；M7 已完成独立虚构样例的 [格式 2 三轮真实讨论烟测](docs/research/2026-10-13-deepseek-discussion-live-smoke.md)，并核对成果保存／明确采用、完成请求去重及无模型重启回看。工程测试、演示模式与真实接口结果分别记录；中文成稿质量与实际成本仍待正式评测。0.2.0 已完成本地发布登记，未推送标签、发布分发制品或远程部署。
 
 ## 阅读入口
 

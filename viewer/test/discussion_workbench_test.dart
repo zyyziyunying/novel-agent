@@ -291,6 +291,53 @@ void main() {
     expect(controller.canChangeCatalog, isTrue);
   });
 
+  testWidgets('成果保存冲突留在发起作品，切换后可返回查看且保留讨论草稿', (tester) async {
+    final (gateway, controller) = await prepare(tester);
+    await controller.sendDiscussion('work-a', 'talk', '成果采用冲突');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('discussion-input')),
+      'A 下一轮草稿',
+    );
+    await scrollTo(tester, find.text('保存到知识库').last);
+    await tester.tap(find.text('保存到知识库').last);
+    await tester.pumpAndSettle();
+    await controller.controllerFor('work-a').act('createChapter', {
+      'chapterId': 'changed-chapter',
+      'title': '来源已改变',
+    });
+    await tester.tap(find.text('保存成果'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('讨论来源版本冲突'), findsOneWidget);
+
+    controller.select('work-b');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('管理知识库'));
+    await tester.pumpAndSettle();
+    expect(find.text('讨论来源版本冲突'), findsNothing);
+    await tester.tap(find.byTooltip('持续讨论'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('新建讨论'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('讨论来源版本冲突'),
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('作品 A：操作失败，返回查看'));
+    await tester.pumpAndSettle();
+    expect(controller.selectedId, 'work-a');
+    expect(find.text('讨论来源版本冲突'), findsOneWidget);
+    expect(find.text('A 下一轮草稿'), findsOneWidget);
+    expect(gateway.workspace.library('k').documents, isEmpty);
+  });
+
   testWidgets('已完成回执刷新后迟到网络失败不退回未知状态', (tester) async {
     final (gateway, controller) = await prepare(tester);
     final delayed = Completer<LibraryResult>();

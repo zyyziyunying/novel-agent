@@ -15,6 +15,9 @@ class LibraryWorkbench extends StatelessWidget {
     builder: (context, _) {
       final workspace = controller.workspace;
       final connection = AgentConnectionSettings.maybeOf(context);
+      final errorWork = workspace?.works
+          .where((work) => work.id == controller.errorWorkId)
+          .firstOrNull;
       return Scaffold(
         appBar: AppBar(
           title: const Text('小说工作台'),
@@ -120,10 +123,18 @@ class LibraryWorkbench extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: 12),
                   child: Text('未配置模型；正文保存、知识库管理与资料采用仍可使用。'),
                 ),
-              if (controller.error != null)
+              if (controller.error != null &&
+                  (errorWork == null || errorWork.id == controller.selectedId))
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(controller.error!),
+                ),
+              if (controller.error != null &&
+                  errorWork != null &&
+                  errorWork.id != controller.selectedId)
+                TextButton(
+                  onPressed: () => controller.select(errorWork.id),
+                  child: Text('${errorWork.title}：操作失败，返回查看'),
                 ),
               if (controller.pending != null)
                 Wrap(
@@ -305,7 +316,8 @@ class _WorkNameDialogState extends State<_WorkNameDialog> {
                 errorText: _validation,
               ),
             ),
-            if (controller.error != null) Text(controller.error!),
+            if (controller.errorForWork(widget.workId) != null)
+              Text(controller.errorForWork(widget.workId)!),
             if (_requestId != null) const Text('结果尚未确认，名称已保留。请刷新或重试。'),
           ],
         ),
@@ -315,7 +327,8 @@ class _WorkNameDialogState extends State<_WorkNameDialog> {
           onPressed: controller.busy ? null : () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        if (controller.error != null || _requestId != null)
+        if (controller.errorForWork(widget.workId) != null ||
+            _requestId != null)
           TextButton(
             onPressed: controller.busy ? null : () => _resolve(retry: false),
             child: const Text('刷新作品'),

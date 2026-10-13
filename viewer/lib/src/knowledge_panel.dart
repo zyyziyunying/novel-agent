@@ -300,7 +300,8 @@ class _KnowledgeHistoryState extends State<_KnowledgeHistory> {
                   ),
                 ),
                 if (work != null) Text('采用目标：${work.title}'),
-                if (controller.error != null) Text(controller.error!),
+                if (controller.errorForWork(widget.workId) != null)
+                  Text(controller.errorForWork(widget.workId)!),
               ],
             ),
           ),
@@ -420,7 +421,8 @@ class _LibraryNameState extends State<_LibraryName> {
                   errorText: validation,
                 ),
               ),
-              if (controller.error != null) Text(controller.error!),
+              if (controller.errorForWork(null) != null)
+                Text(controller.errorForWork(null)!),
               if (requestId != null) const Text('结果尚未确认，名称已保留。'),
             ],
           ),
@@ -430,7 +432,7 @@ class _LibraryNameState extends State<_LibraryName> {
             onPressed: controller.busy ? null : () => Navigator.pop(context),
             child: const Text('取消'),
           ),
-          if (controller.error != null)
+          if (controller.errorForWork(null) != null)
             TextButton(
               onPressed: controller.busy ? null : () => resolve(false),
               child: const Text('刷新资料'),

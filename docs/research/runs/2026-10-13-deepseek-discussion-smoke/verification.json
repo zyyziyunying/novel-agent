@@ -1,0 +1,33 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "seconds": 1.298,
+      "characters": 65,
+      "provider": "deepseek/deepseek-flash"
+    },
+    {
+      "round": 2,
+      "seconds": 1.351,
+      "characters": 68,
+      "provider": "deepseek/deepseek-flash"
+    },
+    {
+      "round": 3,
+      "seconds": 1.061,
+      "characters": 78,
+      "provider": "deepseek/deepseek-flash"
+    }
+  ],
+  "assistantMessages": 3,
+  "authorMessages": 3,
+  "completedTurns": 3,
+  "completedRequestRetryReused": true,
+  "bodyKnowledgeMemoryProposalUnchanged": true,
+  "workBUnchanged": true,
+  "savedPlanEqualsThirdReply": true,
+  "savedPlanNotAutomaticallyAdopted": true,
+  "explicitAdoptionOnlyChangesKnowledgeLinks": true,
+  "noModelRestartPreservesWorkspace": true,
+  "completedRequestRetryAfterNoModelRestartReused": true
+}

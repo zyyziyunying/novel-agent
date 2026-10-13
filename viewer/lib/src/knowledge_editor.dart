@@ -165,8 +165,9 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
     builder: (context, _) {
       final editable = !controller.busy && requestId == null;
       final connection = AgentConnectionSettings.maybeOf(context);
+      final operationError = controller.errorForWork(associatedWorkId);
       final messages = [
-        ?(validation ?? controller.error),
+        ?(validation ?? operationError),
         if (requestId != null) '结果尚未确认，资料编辑已保留。请刷新或用原请求重试。',
       ];
       final message = messages.isEmpty ? null : messages.join('\n');
@@ -384,7 +385,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    if (controller.error != null && connection != null)
+                    if (operationError != null && connection != null)
                       TextButton(
                         onPressed: connection.canOpen
                             ? () => connection.open(context)
@@ -397,7 +398,7 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                           : () => Navigator.pop(context),
                       child: const Text('取消'),
                     ),
-                    if (controller.error != null || requestId != null)
+                    if (operationError != null || requestId != null)
                       TextButton(
                         onPressed: controller.busy
                             ? null

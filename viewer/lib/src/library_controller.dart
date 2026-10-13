@@ -24,6 +24,10 @@ class LibraryController extends ChangeNotifier {
   bool modelAvailable = false;
   bool busy = false;
   String? error;
+  String? _errorWorkId;
+  String? get errorWorkId => error == null ? null : _errorWorkId;
+  String? errorForWork(String? workId) =>
+      errorWorkId == null || errorWorkId == workId ? error : null;
   LibraryCommand? pending;
   final Map<String, WorkspaceController> _controllers = {};
   final String _session = 'catalog-${DateTime.now().microsecondsSinceEpoch}';
@@ -164,12 +168,12 @@ class LibraryController extends ChangeNotifier {
           payload: payload,
         ),
       );
-    });
+    }, workId: target.workId);
   }
 
   Future<bool> retry() async {
     if (busy || pending == null) return false;
-    return _run(() => _submit(pending!));
+    return _run(() => _submit(pending!), workId: pending!.target.workId);
   }
 
   Future<void> _submit(LibraryCommand command) async {
@@ -186,10 +190,11 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
-  Future<bool> _run(Future<void> Function() work) async {
+  Future<bool> _run(Future<void> Function() work, {String? workId}) async {
     if (busy || _disposed) return false;
     busy = true;
     error = null;
+    _errorWorkId = workId;
     notifyListeners();
     try {
       await work();
