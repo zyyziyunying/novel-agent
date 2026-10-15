@@ -24,7 +24,10 @@ KnowledgeVersion version(String id, String body) => KnowledgeVersion(
   ),
   associatedWorkId: null,
 );
-FakeLibraryGateway seeded({bool adopted = false}) {
+FakeLibraryGateway seeded({
+  bool adopted = false,
+  Map<String, List<LibraryLink>> linksByWork = const {},
+}) {
   final gateway = FakeLibraryGateway();
   gateway.workspace = LibraryWorkspace(
     revision: 0,
@@ -33,11 +36,13 @@ FakeLibraryGateway seeded({bool adopted = false}) {
         NovelWork(
           id: work.id,
           title: work.title,
-          knowledgeLinks: adopted
-              ? [
-                  LibraryLink(libraryId: 'k1', versions: {'d1': 'v1'}),
-                ]
-              : [],
+          knowledgeLinks:
+              linksByWork[work.id] ??
+              (adopted
+                  ? [
+                      LibraryLink(libraryId: 'k1', versions: {'d1': 'v1'}),
+                    ]
+                  : []),
           chapters: work.chapters,
           proposals: [],
           memories: work.memories,
@@ -115,6 +120,88 @@ void main() {
     await tester.tap(target);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('进入知识库优先显示当前作品关联的库，手动浏览其他库刷新后仍保留', (tester) async {
+    final gateway = seeded(
+      linksByWork: {
+        'work-a': [LibraryLink(libraryId: 'k2', versions: {})],
+      },
+    );
+    await mount(tester, gateway);
+    expect(find.text('作品 A：已关联，采用 0 份资料'), findsOneWidget);
+    final libraries = find.widgetWithText(
+      DropdownButtonFormField<String>,
+      '知识库',
+    );
+    expect(
+      find.descendant(of: libraries, matching: find.text('长安资料库')),
+      findsOneWidget,
+    );
+    await tester.tap(libraries);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('共享航海库').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('刷新作品'));
+    await tester.pumpAndSettle();
+    expect(find.text('作品 A：未关联此库'), findsOneWidget);
+    await tester.tap(find.byTooltip('返回正文'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('管理知识库'));
+    await tester.pumpAndSettle();
+    expect(find.text('作品 A：已关联，采用 0 份资料'), findsOneWidget);
+    expect(gateway.commands, isEmpty);
+  });
+
+  testWidgets('知识库页面切换作品时跟随关联库，不修改关联和采用版本', (tester) async {
+    final gateway = seeded(
+      linksByWork: {
+        'work-a': [
+          LibraryLink(libraryId: 'k1', versions: {'d1': 'v1'}),
+        ],
+        'work-b': [LibraryLink(libraryId: 'k2', versions: {})],
+      },
+    );
+    final before = gateway.workspace.toJson();
+    await mount(tester, gateway);
+    final works = find.widgetWithText(DropdownButtonFormField<String>, '作品');
+    await tester.tap(works);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('作品 B').last);
+    await tester.pumpAndSettle();
+    expect(find.text('作品 B：已关联，采用 0 份资料'), findsOneWidget);
+    await tester.tap(works);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('作品 A').last);
+    await tester.pumpAndSettle();
+    expect(find.text('作品 A：已关联，采用 1 份资料'), findsOneWidget);
+    expect(gateway.workspace.toJson(), before);
+    expect(gateway.commands, isEmpty);
+  });
+
+  testWidgets('多个关联库保留当前关联选择，无关联作品仍能浏览独立知识库', (tester) async {
+    final gateway = seeded(
+      linksByWork: {
+        'work-a': [
+          LibraryLink(libraryId: 'k1', versions: {}),
+          LibraryLink(libraryId: 'k2', versions: {}),
+        ],
+      },
+    );
+    final controller = await mount(tester, gateway);
+    controller.selectLibrary('k2');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('返回正文'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('管理知识库'));
+    await tester.pumpAndSettle();
+    expect(find.text('长安资料库'), findsOneWidget);
+    controller.select('work-b');
+    await tester.pumpAndSettle();
+    expect(find.text('长安资料库'), findsOneWidget);
+    expect(find.text('作品 B：未关联此库'), findsOneWidget);
+    expect(find.text('关联此知识库'), findsOneWidget);
+    expect(gateway.commands, isEmpty);
+  });
 
   testWidgets('正文草稿、选区和章节选择在进入知识库与返回后保留', (tester) async {
     final controller = await mount(tester, seeded());

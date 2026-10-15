@@ -53,6 +53,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   void showKnowledge(bool show) {
+    if (show && !showingKnowledge) _preferLinkedLibrary();
     showingKnowledge = show;
     showingDiscussion = false;
     notifyListeners();
@@ -73,9 +74,24 @@ class LibraryController extends ChangeNotifier {
 
   void select(String id) {
     if (workspace!.works.any((w) => w.id == id)) {
+      final changed = selectedId != id;
       selectedId = id;
+      if (changed) _preferLinkedLibrary();
       notifyListeners();
     }
+  }
+
+  void _preferLinkedLibrary() {
+    final links = workspace?.works
+        .where((work) => work.id == selectedId)
+        .firstOrNull
+        ?.knowledgeLinks;
+    if (links != null &&
+        links.isNotEmpty &&
+        !links.any((link) => link.libraryId == selectedLibraryId)) {
+      selectedLibraryId = links.first.libraryId;
+    }
+    selectedLibraryId ??= workspace?.libraries.firstOrNull?.id;
   }
 
   Future<bool> load() => _run(() async {
@@ -246,7 +262,7 @@ class LibraryController extends ChangeNotifier {
       );
     }
     selectedId ??= workspace!.works.firstOrNull?.id;
-    selectedLibraryId ??= workspace!.libraries.firstOrNull?.id;
+    if (selectedLibraryId == null) _preferLinkedLibrary();
     notifyListeners();
   }
 
