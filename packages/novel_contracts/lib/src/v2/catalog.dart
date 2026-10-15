@@ -224,6 +224,14 @@ class LibraryWorkspace {
             throw const FormatException('讨论上下文不属于目标作品');
           }
           validateBasis(turn.basis);
+          if (turn.readDocuments != null &&
+              turn.basis.documents.any(
+                (ref) =>
+                    documentVersion(ref).requiresFullText &&
+                    !turn.readDocuments!.contains(ref),
+              )) {
+            throw const FormatException('讨论读取清单不能遗漏必读资料');
+          }
         }
       }
     }

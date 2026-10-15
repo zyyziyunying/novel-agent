@@ -149,17 +149,38 @@ class KnowledgeVersion {
     required this.body,
     required this.provenance,
     required this.associatedWorkId,
-  }) {
+    this.description = '',
+    List<String> tags = const [],
+    this.alwaysRead = false,
+  }) : tags = List.unmodifiable(tags) {
     identifier(id);
     readText(title);
     choice(kind, {'setting', 'reference', 'plan'});
     readText(body);
     optionalIdentifier(associatedWorkId);
+    if (description.length > 500 || tags.length > 20) {
+      throw const FormatException('简介最多 500 字符，标签最多 20 个');
+    }
+    if (tags.any(
+          (tag) =>
+              tag.trim().isEmpty ||
+              tag != tag.trim() ||
+              tag.length > 40 ||
+              RegExp(r'[,，\r\n]').hasMatch(tag),
+        ) ||
+        tags.toSet().length != tags.length) {
+      throw const FormatException('标签须为不重复的短文本，每个最多 40 字符，不能包含逗号或换行');
+    }
   }
   final String id;
   final String title;
   final String kind;
   final String body;
+  final String description;
+  final List<String> tags;
+  final bool alwaysRead;
+  // Old versions lack a description: preserve their full-context behavior.
+  bool get requiresFullText => alwaysRead || description.trim().isEmpty;
   final SourceProvenance provenance;
   // Attribution only; association does not adopt the content for a work.
   final String? associatedWorkId;
@@ -170,16 +191,19 @@ class KnowledgeVersion {
     'body': body,
     'provenance': provenance.toJson(),
     'associatedWorkId': associatedWorkId,
+    if (description.isNotEmpty) 'description': description,
+    if (tags.isNotEmpty) 'tags': tags,
+    if (alwaysRead) 'alwaysRead': true,
   };
   factory KnowledgeVersion.fromJson(Object? value) {
-    final j = object(value, {
-      'id',
-      'title',
-      'kind',
-      'body',
-      'provenance',
-      'associatedWorkId',
-    });
+    final j = objectWithOptional(
+      value,
+      {'id', 'title', 'kind', 'body', 'provenance', 'associatedWorkId'},
+      {'description', 'tags', 'alwaysRead'},
+    );
+    if (j.containsKey('alwaysRead') && j['alwaysRead'] is! bool) {
+      throw const FormatException('必读设置必须为布尔值');
+    }
     return KnowledgeVersion(
       id: identifier(j['id']),
       title: readText(j['title']),
@@ -187,6 +211,11 @@ class KnowledgeVersion {
       body: readText(j['body']),
       provenance: SourceProvenance.fromJson(j['provenance']),
       associatedWorkId: optionalIdentifier(j['associatedWorkId']),
+      description: j.containsKey('description')
+          ? readText(j['description'], allowEmpty: true)
+          : '',
+      tags: j.containsKey('tags') ? items(j['tags'], readText) : [],
+      alwaysRead: j.containsKey('alwaysRead') ? j['alwaysRead'] as bool : false,
     );
   }
 }

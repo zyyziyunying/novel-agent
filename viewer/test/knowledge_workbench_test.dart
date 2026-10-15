@@ -308,6 +308,69 @@ void main() {
     expect(gateway.workspace.library('k1').documents.single.versions.length, 2);
   });
 
+  testWidgets('编辑简介标签和必读产生新版本，历史与作品固定采用保持原样', (tester) async {
+    final gateway = seeded(adopted: true)..modelAvailable = false;
+    await mount(tester, gateway);
+    await openEditor(tester);
+    await tester.enterText(field('资料简介（description）'), '涉及海上航行时查阅潮汐和港口规则。');
+    await tester.enterText(field('标签（TAG）'), '航海，潮汐,航海');
+    await tester.ensureVisible(find.text('必读资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('必读资料'));
+    await button(tester, '保存资料版本');
+    final document = gateway.workspace.library('k1').documents.single;
+    expect(document.current.description, '涉及海上航行时查阅潮汐和港口规则。');
+    expect(document.current.tags, ['航海', '潮汐']);
+    expect(document.current.alwaysRead, isTrue);
+    expect(document.current.body, '新版参考');
+    expect(document.versions.first.description, isEmpty);
+    expect(
+      gateway.workspace.work('work-a').adoptedDocuments.single.versionId,
+      'v1',
+    );
+    expect(find.text('必读资料'), findsOneWidget);
+    await openEditor(tester);
+    expect(
+      tester.widget<TextField>(field('资料简介（description）')).controller!.text,
+      document.current.description,
+    );
+    expect(
+      tester.widget<TextField>(field('标签（TAG）')).controller!.text,
+      '航海，潮汐',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('简介标签和必读在资料保存失败后保留，窄屏可编辑', (tester) async {
+    final gateway = seeded()..failure = const GatewayFailure('保存失败');
+    await mount(tester, gateway, size: const Size(390, 844), scale: 1.5);
+    await openEditor(tester);
+    await tester.enterText(field('资料简介（description）'), '人物乘船时读取。');
+    await tester.enterText(field('标签（TAG）'), '船，人物');
+    await tester.ensureVisible(find.text('必读资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('必读资料'));
+    await button(tester, '保存资料版本');
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('保存失败'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(field('资料简介（description）')).controller!.text,
+      '人物乘船时读取。',
+    );
+    expect(tester.widget<TextField>(field('标签（TAG）')).controller!.text, '船，人物');
+    expect(
+      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+      isTrue,
+    );
+    expect(gateway.workspace.library('k1').documents.single.head, 'v2');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('历史提案展示生成时采用的资料身份、旧版本原文和工具及原始来源', (tester) async {
     final gateway = seeded(adopted: true);
     final work = gateway.workspace.work('work-a');
@@ -358,6 +421,50 @@ void main() {
     expect(find.text('写入者：tool / Codex'), findsOneWidget);
     expect(find.textContaining('https://example.com/research'), findsOneWidget);
     expect(find.text('新版参考'), findsNothing);
+  });
+
+  testWidgets('提案上下文区分只看简介与已加载全文，不把未读取正文展示为引用', (tester) async {
+    final gateway = seeded(adopted: true);
+    final snapshot = gateway.workspace.toJson();
+    snapshot['libraries'][0]['documents'][0]['versions'][0]['description'] =
+        '航海时查阅。';
+    gateway.workspace = LibraryWorkspace.fromJson(snapshot);
+    final work = gateway.workspace.work('work-a');
+    final basis = gateway.workspace.captureBasis(work.id);
+    final proposal = WorkProposal(
+      workId: work.id,
+      documents: basis.documents,
+      discussionSource: null,
+      proposal: Proposal(
+        id: 'directory-only',
+        chapterId: 'chapter-1',
+        title: '室内场景',
+        body: '无需航海资料的候选正文',
+        baseHeads: work.currentHeads,
+        baseRevision: 0,
+        status: 'pending',
+        provider: 'fixture/local',
+        context: {
+          'authorInstruction': '写室内场景',
+          'documents': [],
+          'knowledgeDocuments': [],
+          'knowledgeCatalog': knowledgeCatalog(gateway.workspace, basis),
+          'readDocuments': [],
+        },
+        usage: {},
+      ),
+    );
+    final withProposal = gateway.workspace.toJson();
+    withProposal['works'][0]['proposals'] = [proposal.toJson()];
+    gateway.workspace = LibraryWorkspace.fromJson(withProposal);
+    await mount(tester, gateway);
+    await tester.tap(find.byTooltip('返回正文'));
+    await tester.pumpAndSettle();
+    await button(tester, '查看修改与上下文');
+    expect(find.text('资料目录 1 份 · 本次加载全文 0 份'), findsOneWidget);
+    expect(find.text('航海参考 · 仅看简介'), findsOneWidget);
+    expect(find.text('旧版参考'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('提交名称前释放编辑焦点，等待保存期间名称不可改写', (tester) async {

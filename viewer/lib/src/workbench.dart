@@ -9,6 +9,7 @@ import 'library_controller.dart';
 import 'library_gateway.dart';
 import 'library_workbench.dart';
 import 'knowledge_details.dart';
+import 'knowledge_metadata.dart';
 import 'connection_settings.dart';
 
 class NovelApp extends StatefulWidget {
@@ -883,6 +884,15 @@ class WorkspaceInspector extends StatelessWidget {
                 Text(
                   '记忆：${(proposal.context['memory'] as Json?)?['id'] ?? '未使用可用记忆'}',
                 ),
+                if (proposal.context['knowledgeCatalog']
+                    case final List catalog)
+                  KnowledgeReadSummary(
+                    catalog: catalog,
+                    readDocuments: items(
+                      proposal.context['readDocuments'],
+                      DocumentReference.fromJson,
+                    ),
+                  ),
                 if (proposal.context['knowledgeDocuments']
                     case final List manifest)
                   for (final d in manifest) ...[

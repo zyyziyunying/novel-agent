@@ -27,11 +27,14 @@
 | `payload.expectedVersionId` | 新增为 `null`，更新为读取到的资料 head |
 | `payload.version.id` | 资料内未使用过的新版本 ID |
 | `payload.version.title / kind / body` | 标题、`reference`／`setting`／`plan` 身份、完整原文；不静默去除首尾空白 |
+| `payload.version.description` | 可选简介，最多 500 字符，说明内容与适用场景；省略或空白时按全文读取 |
+| `payload.version.tags` | 可选字符串数组，最多 20 个不重复标签，每个最多 40 字符，不得含首尾空白、中英文逗号或换行 |
+| `payload.version.alwaysRead` | 可选布尔值，默认 false；true 时作品采用此版本后每次写作／讨论都加载全文 |
 | `payload.version.provenance.writer` | 外部工具用 `{kind: "tool", id: "Codex"}` 等来源声明 |
 | `payload.version.provenance.sources` | 至少一个原始来源；网页用 HTTP(S) URL，作者输入用说明，文件用来源引用 |
 | `payload.version.associatedWorkId` | 可选来源关联；与 target.workId 相同 |
 
-每个新版本保存完整原文与来源，不是补丁。工具整理网页时保留工具身份和原网页 URL；示例中的 `example.com` 地址与正文是虚构数据，应替换为实际来源。文件来源只是记录，服务不会按路径读取文件。资料中的指令始终作为资料文本，不触发命令、抓取链接或授予工具权限。
+每个新版本保存完整原文、元数据与来源，不是补丁；更新已有资料时须同时保留希望沿用的简介、标签和必读设置，省略会使用默认值。新字段拒绝显式 null，返回快照省略空简介、空标签和 false。简介和标签只辅助选择，不授予工具权限。工具整理网页时保留工具身份和原网页 URL；示例中的 `example.com` 地址与正文是虚构数据，应替换为实际来源。文件来源只是记录，服务不会按路径读取文件。资料中的指令始终作为资料文本，不触发命令、抓取链接或授予工具权限。
 
 ## 可直接运行的隔离示例
 

@@ -64,6 +64,7 @@ extension _DiscussionService on LibraryService {
     String status, {
     String? reply,
     String? error,
+    List<DocumentReference>? readDocuments,
   }) => DiscussionTurn(
     requestId: turn.requestId,
     authorMessageId: turn.authorMessageId,
@@ -71,6 +72,7 @@ extension _DiscussionService on LibraryService {
     assistantMessageId: reply,
     errorCode: error,
     basis: turn.basis,
+    readDocuments: readDocuments ?? turn.readDocuments,
   );
 
   Future<LibraryWorkspace> _saveDiscussion(
@@ -190,27 +192,68 @@ extension _DiscussionService on LibraryService {
       return (base, true);
     });
     if (!start.$2) return _result(start.$1, reused: true);
-    final running = start.$1;
+    var running = start.$1;
     final discussion = _discussion(running, command.target);
     final turn = discussion.turns.firstWhere(
       (t) => t.requestId == command.requestId,
     );
     String? body;
     String? error;
+    var readDocuments = turn.readDocuments;
     final discussionModel = model;
     if (discussionModel is! DiscussionModel) {
       error = 'model_unavailable';
     } else {
       try {
-        body = await (discussionModel as DiscussionModel).discuss(
-          discussionContext(running, discussion.id, turn),
-          discussion.messages
+        body = await (() async {
+          final instruction = discussion.messages
               .firstWhere((m) => m.id == turn.authorMessageId)
-              .body,
-        );
+              .body;
+          var context = discussionContext(running, discussion.id, turn);
+          if (readDocuments == null) {
+            final prepared = await prepareKnowledge(
+              discussionModel!,
+              context,
+              instruction,
+              task: '持续讨论',
+            );
+            readDocuments = prepared.references;
+            context = prepared.context;
+            // Persist an optional selection before the full-text call so a
+            // failure or process interruption retries the same pinned inputs.
+            if ((context['knowledgeCatalog'] as List).any(
+              (entry) => !(entry['requiresFullText'] as bool),
+            )) {
+              running = await _locked(() async {
+                final current = await repository.load();
+                if (current.revision != running.revision ||
+                    !current.isBasisCurrent(turn.basis)) {
+                  throw const LibraryFailure(
+                    'version_conflict',
+                    '资料选择期间来源已改变。',
+                  );
+                }
+                return _saveDiscussion(
+                  current,
+                  command.target.workId!,
+                  _replaceTurn(
+                    _discussion(current, command.target),
+                    _turnState(turn, 'pending', readDocuments: readDocuments),
+                  ),
+                );
+              });
+            }
+          }
+          return (discussionModel as DiscussionModel).discuss(
+            context,
+            instruction,
+          );
+        })().timeout(const Duration(seconds: 90));
         if (body.trim().isEmpty || body.length > 100000) {
           throw const FormatException('讨论回复无效');
         }
+      } on LibraryFailure catch (failure) {
+        error = failure.code;
       } on Object {
         error = 'model_failed';
       }
@@ -249,6 +292,7 @@ extension _DiscussionService on LibraryService {
             error == null ? 'completed' : 'failed',
             reply: reply?.id,
             error: error,
+            readDocuments: readDocuments,
           ),
           reply: reply,
         ),

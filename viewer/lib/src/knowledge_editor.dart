@@ -3,6 +3,7 @@ import 'package:novel_contracts/novel_contracts.dart';
 
 import 'connection_settings.dart';
 import 'knowledge_details.dart';
+import 'knowledge_metadata.dart';
 import 'library_controller.dart';
 
 void editKnowledge(
@@ -44,6 +45,9 @@ class _KnowledgeEditor extends StatefulWidget {
 class _KnowledgeEditorState extends State<_KnowledgeEditor> {
   final title = TextEditingController();
   final body = TextEditingController();
+  final description = TextEditingController();
+  final tags = TextEditingController();
+  bool alwaysRead = false;
   final formScroll = ScrollController();
   final List<_SourceInput> sources = [];
   List<DiscussionSource> discussionSources = [];
@@ -72,6 +76,9 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
     baseVersionId = version?.id;
     title.text = version?.title ?? '';
     body.text = version?.body ?? '';
+    description.text = version?.description ?? '';
+    tags.text = version?.tags.join('，') ?? '';
+    alwaysRead = version?.alwaysRead ?? false;
     kind = version?.kind ?? 'reference';
     associatedWorkId = version?.associatedWorkId;
     for (final source in sources) {
@@ -102,6 +109,9 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
         title: title.text,
         kind: kind,
         body: body.text,
+        description: description.text,
+        tags: knowledgeTags(tags.text),
+        alwaysRead: alwaysRead,
         provenance: SourceProvenance(
           writer: SourceWriter(kind: 'author', id: 'local-author'),
           sources: [
@@ -112,8 +122,8 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
         ),
         associatedWorkId: associatedWorkId,
       );
-    } on FormatException {
-      setState(() => validation = '请保留至少一个有效来源；网页需填写完整 HTTP(S) 地址。');
+    } on FormatException catch (error) {
+      setState(() => validation = error.message.toString());
       return;
     }
     FocusScope.of(context).unfocus();
@@ -152,6 +162,8 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
   void dispose() {
     title.dispose();
     body.dispose();
+    description.dispose();
+    tags.dispose();
     formScroll.dispose();
     for (final source in sources) {
       source.dispose();
@@ -241,6 +253,15 @@ class _KnowledgeEditorState extends State<_KnowledgeEditor> {
                       onChanged: editable
                           ? (value) => setState(() => kind = value!)
                           : null,
+                    ),
+                    const SizedBox(height: 16),
+                    KnowledgeMetadataEditor(
+                      description: description,
+                      tags: tags,
+                      alwaysRead: alwaysRead,
+                      editable: editable,
+                      onAlwaysReadChanged: (value) =>
+                          setState(() => alwaysRead = value),
                     ),
                     const SizedBox(height: 16),
                     TextField(

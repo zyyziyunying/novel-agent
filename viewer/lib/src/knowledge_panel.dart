@@ -3,6 +3,7 @@ import 'package:novel_contracts/novel_contracts.dart';
 
 import 'knowledge_details.dart';
 import 'knowledge_editor.dart';
+import 'knowledge_metadata.dart';
 import 'library_controller.dart';
 
 class KnowledgePanel extends StatelessWidget {
@@ -120,6 +121,7 @@ class KnowledgePanel extends StatelessWidget {
                       '${knowledgeKind(document.current.kind)} · 知识库最新：${knowledgeVersionLabel(document, document.head)}',
                     ),
                     SelectableText('资料 ID：${document.id}'),
+                    KnowledgeMetadata(version: document.current),
                     if (link?.versions[document.id]
                         case final String adopted) ...[
                       Text(

@@ -6,6 +6,7 @@ import 'package:novel_contracts/novel_contracts.dart';
 
 import 'library_repository.dart';
 import 'model.dart';
+import 'knowledge_reader.dart';
 import 'repository.dart';
 import 'service.dart';
 

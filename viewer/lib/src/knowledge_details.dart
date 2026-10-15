@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
+import 'knowledge_metadata.dart';
+
 String knowledgeKind(String kind) => switch (kind) {
   'setting' => '作者设定',
   'reference' => '外部参考',
@@ -21,6 +23,7 @@ class KnowledgeDetails extends StatelessWidget {
     children: [
       Text('${version.title}（${knowledgeKind(version.kind)}）'),
       SelectableText('版本 ID：${version.id}'),
+      KnowledgeMetadata(version: version),
       Text(
         '写入者：${version.provenance.writer.kind} / ${version.provenance.writer.id}',
       ),

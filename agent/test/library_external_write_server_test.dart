@@ -79,6 +79,10 @@ void main() {
       final document = before.library(_libraryId).documents.single;
       expect(before.revision, 4);
       expect(document.head, 'navigation-v2');
+      expect(document.current.description, '涉及沿海航行、季风与航程安排时查阅。');
+      expect(document.current.tags, ['航海', '季风']);
+      expect(document.current.alwaysRead, isTrue);
+      expect(document.versions.first.description, isEmpty);
       expect(document.versions.map((v) => v.id), [
         'navigation-v1',
         'navigation-v2',
@@ -204,6 +208,8 @@ void main() {
       final unknownLibrary = copy(add);
       unknownLibrary['data']['target']['libraryId'] = 'missing';
       final invalidSource = copy(add);
+      final invalidTags = copy(add);
+      invalidTags['data']['payload']['version']['tags'] = ['地点，人物'];
       invalidSource['data']['payload']['version']['provenance']['sources'] = [
         {'kind': 'web', 'reference': 'file:///private/secret'},
       ];
@@ -213,11 +219,9 @@ void main() {
         inconsistentWork,
         unknownLibrary,
         invalidSource,
+        invalidTags,
       ]) {
-        expect(
-          (await server.request('/libraryAction', body: request)).$1,
-        400,
-        );
+        expect((await server.request('/libraryAction', body: request)).$1, 400);
         expect((await load(server)).toJson(), before);
       }
       final blocked = await Directory(

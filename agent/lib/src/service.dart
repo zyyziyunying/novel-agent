@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
 import 'model.dart';
+import 'knowledge_reader.dart';
 import 'repository.dart';
 
 class NovelFailure implements Exception {
@@ -135,8 +136,21 @@ class NovelService {
             'text': target.body.substring(start, end),
           };
         }
+        late PreparedKnowledge prepared;
         final draft = await _modelCall(
-          () => model!.write(context, payload['instruction'], edit: edit),
+          () => (() async {
+            prepared = await prepareKnowledge(
+              model!,
+              context,
+              payload['instruction'],
+              task: edit ? '改写选段' : '起草下一章',
+            );
+            return model!.write(
+              prepared.context,
+              payload['instruction'],
+              edit: edit,
+            );
+          })().timeout(const Duration(seconds: 90)),
         );
         if (draft.body.trim().isEmpty || draft.body.length > 100000) {
           throw const NovelFailure('invalid_output', '模型正文为空或超过原型限制。');
@@ -160,8 +174,11 @@ class NovelService {
           baseRevision: base.revision,
           status: 'pending',
           provider: model!.name,
-          context: context,
-          usage: draft.usage,
+          context: prepared.context,
+          usage: {
+            ...draft.usage,
+            if (prepared.usage.isNotEmpty) 'knowledgeSelection': prepared.usage,
+          },
         );
         next = base.replace(proposals: [...base.proposals, proposal]);
       case 'acceptProposal':
@@ -175,10 +192,13 @@ class NovelService {
         final accept = command.operation == 'acceptProposal';
         if (accept &&
             (!sameHeads(proposal.baseHeads, base.currentHeads) ||
-                jsonEncode(proposal.context['documents']) !=
-                    jsonEncode(
-                      base.documents.map((d) => d.toJson()).toList(),
-                    ))) {
+                (proposal.context.containsKey('knowledgeCatalog')
+                    ? jsonEncode(proposal.context['knowledgeCatalog']) !=
+                          jsonEncode(catalogFromContext(contextMetadata))
+                    : jsonEncode(proposal.context['documents']) !=
+                          jsonEncode(
+                            base.documents.map((d) => d.toJson()).toList(),
+                          )))) {
           throw const NovelFailure('version_conflict', '提案所依据的正文或资料已改变，请重新生成。');
         }
         next = base.replace(

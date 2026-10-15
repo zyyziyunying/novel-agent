@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:novel_contracts/novel_contracts.dart';
 
 import 'knowledge_details.dart';
+import 'knowledge_metadata.dart';
 import 'library_controller.dart';
 
 class NewDiscussionDialog extends StatefulWidget {
@@ -175,6 +176,9 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
     text: _base.discussionMessage(widget.source).body,
   );
   final _original = TextEditingController();
+  final _description = TextEditingController();
+  final _tags = TextEditingController();
+  bool _alwaysRead = false;
   late final String _id = widget.controller.newKnowledgeId(
     widget.edit ? 'discussion-proposal' : 'discussion-document',
   );
@@ -214,6 +218,8 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
     _title.dispose();
     _body.dispose();
     _original.dispose();
+    _description.dispose();
+    _tags.dispose();
     super.dispose();
   }
 
@@ -245,6 +251,9 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
             title: _title.text,
             kind: _kind,
             body: _body.text,
+            description: _description.text,
+            tags: knowledgeTags(_tags.text),
+            alwaysRead: _alwaysRead,
             provenance: SourceProvenance(
               writer: SourceWriter(kind: 'author', id: 'author'),
               sources: [widget.source],
@@ -376,6 +385,15 @@ class _AdoptDiscussionDialogState extends State<AdoptDiscussionDialog> {
                     decoration: const InputDecoration(labelText: '资料标题'),
                   ),
                   const Text('保存后仍需在知识库中明确采用资料版本，才会进入作品上下文。'),
+                  const SizedBox(height: 16),
+                  KnowledgeMetadataEditor(
+                    description: _description,
+                    tags: _tags,
+                    alwaysRead: _alwaysRead,
+                    editable: !frozen,
+                    onAlwaysReadChanged: (value) =>
+                        setState(() => _alwaysRead = value),
+                  ),
                 ],
                 // Recreate Web semantics when readonly changes; retain the draft.
                 KeyedSubtree(

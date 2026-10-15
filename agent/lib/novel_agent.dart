@@ -1,6 +1,7 @@
 library;
 
 export 'src/model.dart';
+export 'src/knowledge_reader.dart';
 export 'src/repository.dart';
 export 'src/service.dart';
 export 'src/runtime.dart';

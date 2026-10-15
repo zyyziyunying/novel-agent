@@ -87,11 +87,19 @@ class DiscussionTurn {
     required this.assistantMessageId,
     required this.errorCode,
     required this.basis,
-  }) {
+    List<DocumentReference>? readDocuments,
+  }) : readDocuments = readDocuments == null
+           ? null
+           : List.unmodifiable(readDocuments) {
     identifier(requestId);
     identifier(authorMessageId);
     choice(status, {'pending', 'completed', 'failed'});
     optionalIdentifier(assistantMessageId);
+    if (readDocuments != null &&
+        (readDocuments.toSet().length != readDocuments.length ||
+            !readDocuments.every(basis.documents.contains))) {
+      throw const FormatException('实际读取资料必须属于本轮固定来源且不能重复');
+    }
     if (errorCode != null) {
       choice(errorCode, {
         'model_unavailable',
@@ -112,6 +120,8 @@ class DiscussionTurn {
   final String? errorCode;
   // Captured before invoking the model; also retained for pending/failed turns.
   final GenerationBasis basis;
+  // Missing in historical turns. Non-null also pins selection across retries.
+  final List<DocumentReference>? readDocuments;
   Json toJson() => {
     'requestId': requestId,
     'authorMessageId': authorMessageId,
@@ -119,16 +129,22 @@ class DiscussionTurn {
     'assistantMessageId': assistantMessageId,
     'errorCode': errorCode,
     'basis': basis.toJson(),
+    if (readDocuments != null)
+      'readDocuments': readDocuments!.map((ref) => ref.toJson()).toList(),
   };
   factory DiscussionTurn.fromJson(Object? value) {
-    final j = object(value, {
-      'requestId',
-      'authorMessageId',
-      'status',
-      'assistantMessageId',
-      'errorCode',
-      'basis',
-    });
+    final j = objectWithOptional(
+      value,
+      {
+        'requestId',
+        'authorMessageId',
+        'status',
+        'assistantMessageId',
+        'errorCode',
+        'basis',
+      },
+      {'readDocuments'},
+    );
     return DiscussionTurn(
       requestId: identifier(j['requestId']),
       authorMessageId: identifier(j['authorMessageId']),
@@ -136,6 +152,9 @@ class DiscussionTurn {
       assistantMessageId: optionalIdentifier(j['assistantMessageId']),
       errorCode: j['errorCode'] == null ? null : readText(j['errorCode']),
       basis: GenerationBasis.fromJson(j['basis']),
+      readDocuments: j.containsKey('readDocuments')
+          ? items(j['readDocuments'], DocumentReference.fromJson)
+          : null,
     );
   }
 }

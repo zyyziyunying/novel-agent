@@ -1,5 +1,22 @@
 import '../workspace.dart';
 
+/// Additive fields keep older format 2 snapshots and requests readable.
+/// Explicit null and unknown fields still fail at the individual field parser.
+Json objectWithOptional(
+  Object? value,
+  Set<String> required,
+  Set<String> optional,
+) {
+  if (value is! Json ||
+      required.any((key) => !value.containsKey(key)) ||
+      value.keys.any(
+        (key) => !required.contains(key) && !optional.contains(key),
+      )) {
+    throw const FormatException('JSON 字段不符合契约');
+  }
+  return value;
+}
+
 String identifier(Object? value) {
   final text = readText(value);
   if (text != text.trim()) throw const FormatException('标识不得带首尾空白');

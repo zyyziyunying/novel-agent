@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'library.dart';
+import 'knowledge_context.dart';
 import 'workspace.dart';
 
 /// Reconstruct immutable sources for a saved turn, including an exact retry.
@@ -12,7 +13,7 @@ Json discussionContext(
   final basis = turn.basis;
   final work = workspace.work(basis.workId);
   final discussion = work.discussions.firstWhere((d) => d.id == discussionId);
-  final refs = [...basis.documents]
+  final refs = [...(turn.readDocuments ?? basis.documents)]
     ..sort((a, b) {
       final library = a.libraryId.compareTo(b.libraryId);
       return library != 0 ? library : a.documentId.compareTo(b.documentId);
@@ -25,6 +26,10 @@ Json discussionContext(
     'basis': basis.toJson(),
     'discussionId': discussionId,
     'chapterId': discussion.chapterId,
+    if (turn.readDocuments != null) ...{
+      'knowledgeCatalog': knowledgeCatalog(workspace, basis),
+      'readDocuments': refs.map((ref) => ref.toJson()).toList(),
+    },
     'documents': [
       for (final ref in refs)
         SourceDocument(

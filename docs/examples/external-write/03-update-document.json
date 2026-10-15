@@ -13,6 +13,9 @@
       "documentId": "navigation-notes",
       "expectedVersionId": "navigation-v1",
       "version": {
+        "description": "涉及沿海航行、季风与航程安排时查阅。",
+        "tags": ["航海", "季风"],
+        "alwaysRead": true,
         "id": "navigation-v2",
         "title": "沿海航路笔记",
         "kind": "reference",

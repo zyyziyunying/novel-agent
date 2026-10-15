@@ -186,10 +186,21 @@ void main() {
     await tester.tap(find.text('未来计划').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '资料标题'), '采用的情节计划');
+    await tester.enterText(
+      find.widgetWithText(TextField, '资料简介（description）'),
+      '规划下一章情节时读取。',
+    );
+    await tester.enterText(find.widgetWithText(TextField, '标签（TAG）'), '情节，下一章');
+    await tester.ensureVisible(find.text('必读资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('必读资料'));
     await tester.tap(find.text('保存成果'));
     await tester.pumpAndSettle();
     final doc = gateway.workspace.library('k').documents.single;
     expect(doc.current.kind, 'plan');
+    expect(doc.current.description, '规划下一章情节时读取。');
+    expect(doc.current.tags, ['情节', '下一章']);
+    expect(doc.current.alwaysRead, isTrue);
     expect(doc.current.body, '讨论建议：未来情节');
     expect(doc.current.associatedWorkId, 'work-a');
     expect(

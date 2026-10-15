@@ -3,6 +3,7 @@ import 'package:novel_contracts/novel_contracts.dart';
 
 import 'discussion_dialogs.dart';
 import 'knowledge_details.dart';
+import 'knowledge_metadata.dart';
 import 'library_controller.dart';
 
 class DiscussionPanel extends StatefulWidget {
@@ -251,7 +252,12 @@ class _DiscussionPanelState extends State<DiscussionPanel> {
                     ),
                   ),
                 if (turn.basis.documents.isEmpty) const Text('本轮没有采用资料。'),
-                for (final ref in turn.basis.documents)
+                if (turn.readDocuments != null)
+                  KnowledgeReadSummary(
+                    catalog: knowledgeCatalog(catalog.workspace!, turn.basis),
+                    readDocuments: turn.readDocuments!,
+                  ),
+                for (final ref in turn.readDocuments ?? turn.basis.documents)
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Column(
